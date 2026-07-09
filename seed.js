@@ -69,6 +69,7 @@
     speechRate: 0.55,     // slow therapeutic default (spec 5.2)
     soundOn: true,
     wordOnly: false,      // picture+word by default (spec 3.1)
+    sentenceBar: true,    // sentence-building bar on Talk/People screens
     mode: 'core',
     density: 4,           // 3-5 choices per screen target (spec 4.4)
     backupReminderDays: 7,
@@ -93,6 +94,12 @@
           deleted: false, createdAt: now, updatedAt: now,
         });
       }
+      // Migration: fix the "Capital I" speech quirk on installs seeded before speakAs existed.
+      const iWord = await DB.get('vocabulary', 'core-i');
+      if (iWord && !iWord.speakAs) {
+        iWord.speakAs = 'i';
+        await DB.put('vocabulary', iWord);
+      }
     },
 
     async seedIfEmpty() {
@@ -106,12 +113,16 @@
       }
       let i = 0;
       for (const [label, symbolKey, colorToken] of CORE_WORDS) {
-        await DB.put('vocabulary', {
+        const rec = {
           id: 'core-' + symbolKey, label, symbolKey, colorToken,
           categoryId: 'cat-core', core: true, sortOrder: i++,
           imageBlob: null, audioBlob: null,
           deleted: false, createdAt: now, updatedAt: now,
-        });
+        };
+        // A single capital "I" makes some voices announce "Capital I".
+        // Speak it as lowercase (sounds identical) while displaying the proper capital.
+        if (label === 'I') rec.speakAs = 'i';
+        await DB.put('vocabulary', rec);
       }
       for (const [categoryId, label, symbolKey] of LEARNING_WORDS) {
         await DB.put('vocabulary', {

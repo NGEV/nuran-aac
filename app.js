@@ -253,6 +253,7 @@
   }
 
   function speakBarHTML() {
+    if (settings.sentenceBar === false) return '';
     return `<div class="speak-bar">
       <button class="speak-line" id="sb-line" aria-label="Say the whole sentence"></button>
       <button class="speak-clear" id="sb-clear" aria-label="Clear the sentence">Clear</button>
@@ -334,7 +335,7 @@
       b.onclick = () => {
         const w = byId[b.dataset.word];
         speakAndFeedback(b, w);
-        if (sentence.length < SENTENCE_MAX) {
+        if (settings.sentenceBar !== false && sentence.length < SENTENCE_MAX) {
           sentence.push({ id: w.id, label: w.label, speakAs: w.speakAs, symbolKey: w.symbolKey, imageBlob: w.imageBlob, audioBlob: w.audioBlob });
           updateSpeakBar();
         }
@@ -372,7 +373,7 @@
       b.onclick = () => {
         const p = byId[b.dataset.person];
         speakAndFeedback(b, Object.assign({ label: p.name }, p));
-        if (sentence.length < SENTENCE_MAX) {
+        if (settings.sentenceBar !== false && sentence.length < SENTENCE_MAX) {
           sentence.push({ id: p.id, label: p.name, imageBlob: p.photoBlob, audioBlob: p.audioBlob });
           updateSpeakBar();
         }
@@ -735,6 +736,12 @@
     screen(`${topbar('Settings', 'caregiver')}
       <div class="screen"><div class="form">
         <div class="hint">Talk opens with the core words, and she can move between all groups herself using the symbol strip.</div>
+        <label>Sentence bar
+          <select id="s-sbar">
+            <option value="on" ${settings.sentenceBar !== false ? 'selected' : ''}>Shown — tapped words build a sentence</option>
+            <option value="off" ${settings.sentenceBar === false ? 'selected' : ''}>Hidden — words speak one at a time only</option>
+          </select>
+        </label>
         <label>Show
           <select id="s-wordonly">
             <option value="no" ${!settings.wordOnly ? 'selected' : ''}>Picture and word together</option>
@@ -769,6 +776,7 @@
         <div class="hint">Changes save immediately.</div>
       </div></div>`);
     bindNav();
+    $('#s-sbar').onchange = e => { setSetting('sentenceBar', e.target.value === 'on'); if (e.target.value === 'off') sentence = []; };
     $('#s-wordonly').onchange = e => setSetting('wordOnly', e.target.value === 'yes');
     $('#s-density').onchange = e => setSetting('density', Number(e.target.value));
     $('#s-rate').onchange = e => setSetting('speechRate', Number(e.target.value));
