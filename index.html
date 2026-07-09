@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Nuran — Talk &amp; Learn</title>
+  <meta name="description" content="An offline communication and early literacy app. No accounts, no tracking, nothing leaves the device.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Nuran">
+  <meta name="theme-color" content="#f7f4ee">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="app" aria-live="polite"></main>
+
+  <!-- Help alert overlay: offline, on-device, dismissed only by a caregiver hold (spec 6.4) -->
+  <div id="help-overlay" role="alertdialog" aria-label="Help requested">
+    <h2>Help!</h2>
+    <p>She pressed the Help button and needs a grown-up right now.</p>
+    <button id="help-dismiss" class="gate-btn">Grown-up: press and hold to answer</button>
+  </div>
+
+  <div id="modal-wrap"><div id="modal" role="dialog"></div></div>
+
+  <script src="symbols.js"></script>
+  <script src="db.js"></script>
+  <script src="speech.js"></script>
+  <script src="seed.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
