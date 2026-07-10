@@ -14,11 +14,20 @@
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   let settings = {};
+  /* Object-URL lifecycle: screen HTML is built BEFORE screen() runs, so URLs
+     created during that build must not be revoked by the same render. New URLs
+     collect in pendingURLs; releaseURLs() revokes the previous screen's URLs
+     and promotes the pending ones. */
   let objectURLs = [];
+  let pendingURLs = [];
   const GATE_HOLD_MS = 2500;
 
-  function trackURL(u) { objectURLs.push(u); return u; }
-  function releaseURLs() { objectURLs.forEach(u => URL.revokeObjectURL(u)); objectURLs = []; }
+  function trackURL(u) { pendingURLs.push(u); return u; }
+  function releaseURLs() {
+    objectURLs.forEach(u => URL.revokeObjectURL(u));
+    objectURLs = pendingURLs;
+    pendingURLs = [];
+  }
 
   async function loadSettings() {
     const rows = await DB.all('settings');
