@@ -2,6 +2,8 @@
 
 A free communication and early literacy app for a minimally verbal child, made to run on an iPad with no internet, no account, no ads, and no tracking. Nothing the child does ever leaves the device unless you choose to export a backup.
 
+**[📖 Read the user manual (PDF)](nuran-user-manual.pdf)** — an illustrated guide covering every screen and feature, written for non-technical caregivers.
+
 This README is for parents and caregivers. If you are a developer, see `TECHNICAL.md`.
 
 ## What it does
