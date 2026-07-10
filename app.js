@@ -223,7 +223,7 @@
      Kept as a map so installs made before symbolKey existed still show symbols. */
   const CAT_SYMBOLS = {
     'cat-core': '_talk', 'cat-food': 'apple', 'cat-body': '_body', 'cat-feelings': 'happy',
-    'cat-actions': 'go', 'cat-places': 'home', 'cat-play': 'ball',
+    'cat-actions': 'go', 'cat-places': 'home', 'cat-play': 'ball', 'cat-phrases': '_star',
   };
   function catSymbolHTML(c) {
     const key = c.symbolKey || CAT_SYMBOLS[c.id];
@@ -256,8 +256,25 @@
     if (settings.sentenceBar === false) return '';
     return `<div class="speak-bar">
       <button class="speak-line" id="sb-line" aria-label="Say the whole sentence"></button>
+      <button class="speak-clear" id="sb-save" aria-label="Hold to save this sentence as a button">Save</button>
       <button class="speak-clear" id="sb-clear" aria-label="Clear the sentence">Clear</button>
     </div>`;
+  }
+
+  /* Save the current sentence as a single tile in My Phrases (hold-to-save,
+     so a stray tap cannot create tiles). Spoken via synthesis as one line. */
+  async function savePhrase() {
+    if (!sentence.length) return;
+    const label = sentence.map(s => s.label).join(' ').slice(0, 60);
+    const existing = await DB.allActive('vocabulary');
+    if (!existing.some(w => w.categoryId === 'cat-phrases' && w.label.toLowerCase() === label.toLowerCase())) {
+      await DB.save('vocabulary', {
+        id: DB.uid(), label, categoryId: 'cat-phrases', custom: true, phrase: true,
+        symbolKey: '_star', colorToken: 'people', sortOrder: Date.now(), deleted: false,
+      });
+    }
+    const btn = $('#sb-save');
+    if (btn) { btn.textContent = 'Saved'; setTimeout(() => { if ($('#sb-save')) $('#sb-save').textContent = 'Save'; }, 1600); }
   }
 
   function bindSpeakBar() {
@@ -276,6 +293,7 @@
       speaking = false;
     };
     $('#sb-clear').onclick = () => { sentence = []; updateSpeakBar(); };
+    if ($('#sb-save')) longPress($('#sb-save'), savePhrase, 800);
   }
 
   /* Talk: core words open first (fastest communication), and a persistent
@@ -305,6 +323,9 @@
       <button class="group-chip tok-people" data-goto="__people">
         <span class="gsym">${Symbols.get('_people')}</span><span class="glbl">People</span>
       </button>
+      ${settings.keyboard ? `<button class="group-chip tok-neutral" data-goto="__keyboard">
+        <span class="gsym">${Symbols.letterTile('A')}</span><span class="glbl">Keyboard</span>
+      </button>` : ''}
     </div>`;
 
     screen(`${topbar(cat.name || 'Talk', null)}
@@ -327,7 +348,9 @@
       </div>`);
     bindNav();
     app().querySelectorAll('[data-goto]').forEach(b => {
-      b.onclick = () => b.dataset.goto === '__people' ? go('people') : go('talk', { categoryId: b.dataset.goto });
+      b.onclick = () => b.dataset.goto === '__people' ? go('people')
+        : b.dataset.goto === '__keyboard' ? go('keyboard')
+        : go('talk', { categoryId: b.dataset.goto });
     });
     bindSpeakBar();
     const byId = Object.fromEntries(slice.map(w => [w.id, w]));
@@ -346,6 +369,63 @@
       if ($('#pg-prev')) $('#pg-prev').onclick = () => nav(-1);
       if ($('#pg-next')) $('#pg-next').onclick = () => nav(1);
     }
+  };
+
+  /* ---------- Type-to-speak keyboard (literacy bridge; caregiver enables in Settings) ---------- */
+
+  let kbText = '';
+
+  screens.keyboard = async function () {
+    if (!settings.keyboard) return go('talk');
+    const rows = ['ABCDEFG', 'HIJKLMN', 'OPQRSTU', 'VWXYZ'];
+    screen(`${topbar('Keyboard', null)}
+      <div class="screen">
+        <div class="group-strip">
+          <button class="group-chip tok-action" data-nav="talk">
+            <span class="gsym">${Symbols.get('_talk')}</span><span class="glbl">Back to words</span></button>
+        </div>
+        <div class="speak-bar">
+          <button class="speak-line kb-display" id="kb-line" aria-label="Say what is typed"></button>
+          <button class="speak-clear" id="kb-speak" aria-label="Speak">Speak</button>
+          <button class="speak-clear" id="kb-clear" aria-label="Clear">Clear</button>
+        </div>
+        <div class="kb-rows">
+          ${rows.map(r => `<div class="kb-row">${[...r].map(ch =>
+            `<button class="kb-key" data-key="${ch}">${ch}</button>`).join('')}</div>`).join('')}
+          <div class="kb-row">
+            <button class="kb-key kb-wide" data-key=" " aria-label="Space">space</button>
+            <button class="kb-key" data-key="⌫" aria-label="Delete one letter">&#9003;</button>
+          </div>
+        </div>
+      </div>`);
+    bindNav();
+    const line = $('#kb-line');
+    const refresh = () => {
+      line.innerHTML = kbText
+        ? `<span class="kb-text">${esc(kbText)}</span>`
+        : '<span class="placeholder">Tap letters, then tap Speak</span>';
+    };
+    refresh();
+    app().querySelectorAll('.kb-key').forEach(k => {
+      k.onclick = () => {
+        const key = k.dataset.key;
+        if (key === '⌫') kbText = kbText.slice(0, -1);
+        else if (kbText.length < 80) kbText += key === ' ' ? ' ' : key.toLowerCase();
+        refresh();
+      };
+    });
+    const speakTyped = async () => {
+      const text = kbText.trim();
+      if (!text) return;
+      Speech.prime();
+      line.classList.add('speaking');
+      DB.logTap('keyboard', text);
+      await Speech.speakItem({ label: text }, { rate: settings.speechRate, soundOn: settings.soundOn });
+      setTimeout(() => line.classList.remove('speaking'), 450);
+    };
+    $('#kb-speak').onclick = speakTyped;
+    line.onclick = speakTyped;
+    $('#kb-clear').onclick = () => { kbText = ''; refresh(); };
   };
 
   /* ---------- People (spec 3.3, visual scene style) ---------- */
@@ -742,6 +822,12 @@
             <option value="off" ${settings.sentenceBar === false ? 'selected' : ''}>Hidden — words speak one at a time only</option>
           </select>
         </label>
+        <label>Keyboard (type to speak)
+          <select id="s-kb">
+            <option value="off" ${!settings.keyboard ? 'selected' : ''}>Hidden — until she is ready for letters</option>
+            <option value="on" ${settings.keyboard ? 'selected' : ''}>Shown — a Keyboard button joins the group strip</option>
+          </select>
+        </label>
         <label>Show
           <select id="s-wordonly">
             <option value="no" ${!settings.wordOnly ? 'selected' : ''}>Picture and word together</option>
@@ -777,6 +863,7 @@
       </div></div>`);
     bindNav();
     $('#s-sbar').onchange = e => { setSetting('sentenceBar', e.target.value === 'on'); if (e.target.value === 'off') sentence = []; };
+    $('#s-kb').onchange = e => setSetting('keyboard', e.target.value === 'on');
     $('#s-wordonly').onchange = e => setSetting('wordOnly', e.target.value === 'yes');
     $('#s-density').onchange = e => setSetting('density', Number(e.target.value));
     $('#s-rate').onchange = e => setSetting('speechRate', Number(e.target.value));

@@ -29,7 +29,9 @@ The caregiver area is behind the small "Grown-ups: press and hold" button at the
 
 Talk opens with the research-chosen core words that carry most everyday communication, starting with yes and no. Along the top sits a strip of symbol buttons, one for each word group — Food, Feelings, Actions, Places, Play, People, and any groups you add. She can move between groups entirely on her own; nothing in the app requires a grown-up to unlock learning. Words you add yourself appear right inside their groups, and there is a "word only" display option in Settings for when she starts recognizing written words.
 
-Above the words is the sentence bar. Every word she taps is spoken right away and also lands in the bar, so she can collect a thought across groups — "I", then "want", then over to Food for "cookie" — and tap the bar to hear the whole sentence spoken together. People count too: tapping mom's photo puts "mom" in the sentence. The Clear button empties it. This is how single words grow into real sentences, so model it often: build little sentences yourself while she watches.
+Above the words is the sentence bar. Every word she taps is spoken right away and also lands in the bar, so she can collect a thought across groups — "I", then "want", then over to Food for "cookie" — and tap the bar to hear the whole sentence spoken together. People count too: tapping mom's photo puts "mom" in the sentence. The Clear button empties it, and holding the Save button turns the sentence into a single button in a "My Phrases" group, so things she says often ("I need the bathroom") become one tap.
+
+There is also a type-to-speak keyboard — big letter keys that speak whatever she types — for when letters start to click. It stays hidden until you turn it on in Settings, so it never clutters her screen before she is ready. This is how single words grow into real sentences, so model it often: build little sentences yourself while she watches.
 
 Tip: iPadOS has a feature called Guided Access (in Settings under Accessibility) that keeps the iPad locked to one app. Turning it on for this app means she cannot wander into other apps mid-conversation.
 

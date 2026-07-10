@@ -18,6 +18,7 @@
     { id: 'cat-actions',  name: 'Actions',        colorToken: 'action',   symbolKey: 'go',    sortOrder: 4, builtin: true },
     { id: 'cat-places',   name: 'Places',         colorToken: 'place',    symbolKey: 'home',  sortOrder: 5, builtin: true },
     { id: 'cat-play',     name: 'Play',           colorToken: 'question', symbolKey: 'ball',  sortOrder: 6, builtin: true },
+    { id: 'cat-phrases',  name: 'My Phrases',     colorToken: 'people',   symbolKey: '_star', sortOrder: 7, builtin: true },
   ];
 
   // [label, symbolKey, colorToken] — Universal Core 36, plus yes/no.
@@ -70,6 +71,7 @@
     soundOn: true,
     wordOnly: false,      // picture+word by default (spec 3.1)
     sentenceBar: true,    // sentence-building bar on Talk/People screens
+    keyboard: false,      // type-to-speak keyboard (caregiver enables when ready)
     mode: 'core',
     density: 4,           // 3-5 choices per screen target (spec 4.4)
     backupReminderDays: 7,
@@ -99,6 +101,15 @@
       if (iWord && !iWord.speakAs) {
         iWord.speakAs = 'i';
         await DB.put('vocabulary', iWord);
+      }
+      // Migration: My Phrases group for installs seeded before it existed.
+      // Respects deliberate deletion: if the record exists at all, leave it be.
+      const phrasesCat = await DB.get('categories', 'cat-phrases');
+      if (!phrasesCat) {
+        await DB.put('categories', {
+          id: 'cat-phrases', name: 'My Phrases', colorToken: 'people', symbolKey: '_star',
+          sortOrder: 7, builtin: true, deleted: false, createdAt: now, updatedAt: now,
+        });
       }
     },
 

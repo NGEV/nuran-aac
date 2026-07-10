@@ -121,6 +121,16 @@ input, select, textarea {
 .speak-line.speaking { background: #ede8dc; }
 .speak-clear { min-width: 84px; min-height: 68px; font-weight: 700; color: var(--ink-soft); }
 
+/* ---------- Type-to-speak keyboard ---------- */
+.kb-rows { display: flex; flex-direction: column; gap: 12px; }
+.kb-row { display: flex; gap: 12px; justify-content: center; }
+.kb-key {
+  flex: 0 1 76px; min-width: 56px; min-height: 62px;
+  font-size: 1.45rem; font-weight: 700; border-radius: 12px;
+}
+.kb-key.kb-wide { flex: 0 1 320px; font-size: 1.1rem; color: var(--ink-soft); }
+.kb-display .kb-text { font-size: 1.5rem; font-weight: 700; letter-spacing: 0.04em; }
+
 /* ---------- Communication grid ---------- */
 /* Persistent group strip: every group one tap away, always in the same place */
 .group-strip { display: flex; flex-wrap: wrap; gap: 10px; }
