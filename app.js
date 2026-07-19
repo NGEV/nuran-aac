@@ -352,6 +352,8 @@
       <div class="screen">
         ${speakBarHTML()}
         ${strip}
+        ${(!allWords.some(w => w.categoryId === 'cat-phrases') && settings.sentenceBar !== false)
+          ? '<div class="hint">Tip: hold the Save button to turn a sentence into a button of its own.</div>' : ''}
         ${pinnedRow}
         <div class="tile-grid ${dClass}">
           ${slice.map(w => `
@@ -362,9 +364,9 @@
             '<div class="notice">No words here yet. A caregiver can add some in the caregiver area.</div>'}
         </div>
         ${pages > 1 ? `<div class="pager">
-          <button id="pg-prev" ${page === 0 ? 'disabled' : ''}>&#8592; Back</button>
+          <button id="pg-prev" aria-label="Previous words" ${page === 0 ? 'disabled' : ''}>&#8592;</button>
           <span class="count">${page + 1} of ${pages}</span>
-          <button id="pg-next" ${page >= pages - 1 ? 'disabled' : ''}>More &#8594;</button>
+          <button id="pg-next" aria-label="More words" ${page >= pages - 1 ? 'disabled' : ''}>More &#8594;</button>
         </div>` : ''}
       </div>`);
     bindNav();
@@ -455,6 +457,9 @@
             <span class="sym">${Symbols.get('same')}</span><span class="lbl">Match Words</span></button>
           <button class="tile tok-question" data-game="cc">
             <span class="sym">${Symbols.get('cele_rainbow')}</span><span class="lbl">Match Colors</span></button>
+          ${settings.contentLang && settings.contentLang !== 'en' ? `
+          <button class="tile tok-people" data-langgame="${esc(settings.contentLang)}">
+            <span class="sym">${Symbols.get('_talk')}</span><span class="lbl">${settings.contentLang === 'ar' ? 'Arabic' : 'Somali'} words</span></button>` : ''}
         </div>
         <div class="hint" style="text-align:center">Games start easy and grow with her. Wrong taps never scold — after two tries, the answer gently shows itself.</div>
       </div>`);
@@ -462,22 +467,105 @@
     app().querySelectorAll('[data-game]').forEach(b => {
       b.onclick = () => { Speech.prime(); go('learngame', { mode: b.dataset.game }); };
     });
+    const lg = app().querySelector('[data-langgame]');
+    if (lg) lg.onclick = () => { Speech.prime(); go('learngame', { mode: 'wp', lang: lg.dataset.langgame }); };
   };
+
+  /* ---------- Translate & record: caregiver builds another language, word by word.
+     For Somali there is no synthetic voice anywhere, so recordings ARE the voice. ---------- */
+
+  screens.langwords = async function (params) {
+    const lang = ['ar', 'so'].includes(params.lang) ? params.lang : (settings.contentLang !== 'en' ? settings.contentLang : 'so');
+    const words = (await DB.allActive('vocabulary')).filter(w => !w.phrase).sort((a, b) => a.label.localeCompare(b.label));
+    const byId = Object.fromEntries(words.map(w => [w.id, w]));
+    const done = words.filter(w => w.translations && w.translations[lang] && (w.translations[lang].label || w.translations[lang].audioBlob)).length;
+    screen(`${topbar('Translate & record', 'caregiver')}
+      <div class="screen">
+        <div class="row" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <select id="lw-lang" style="max-width:220px">
+            <option value="so" ${lang === 'so' ? 'selected' : ''}>Somali</option>
+            <option value="ar" ${lang === 'ar' ? 'selected' : ''}>Arabic</option>
+          </select>
+          <span class="hint">${done} of ${words.length} words have ${LANG_NAMES[lang]} so far. Type the word, or record your voice, or both.</span>
+        </div>
+        <div class="list-rows">
+          ${words.map(w => {
+            const t = (w.translations && w.translations[lang]) || {};
+            return `<div class="list-row">
+              <div style="min-width:110px"><b>${esc(w.label)}</b></div>
+              <input class="lw-in" data-lw="${esc(w.id)}" value="${esc(t.label || '')}" placeholder="${esc(LANG_NAMES[lang])}…" ${lang === 'ar' ? 'dir="rtl"' : ''}>
+              <button data-lwrec="${esc(w.id)}">${'🎙'}</button>
+              <button data-lwplay="${esc(w.id)}" ${t.audioBlob ? '' : 'disabled'}>&#9654;</button>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>`);
+    bindNav();
+    $('#lw-lang').onchange = (e) => go('langwords', { lang: e.target.value });
+    const saveT = async (w, patch) => {
+      w.translations = w.translations || {};
+      w.translations[lang] = Object.assign(w.translations[lang] || {}, patch);
+      await DB.save('vocabulary', w);
+    };
+    app().querySelectorAll('.lw-in').forEach(inp => {
+      inp.addEventListener('change', () => saveT(byId[inp.dataset.lw], { label: inp.value.trim() }));
+    });
+    let activeRec = null;
+    app().querySelectorAll('[data-lwrec]').forEach(b => {
+      b.onclick = async () => {
+        if (activeRec && activeRec.btn === b) {
+          const blob = await activeRec.rec.stop();
+          await saveT(byId[b.dataset.lwrec], { audioBlob: blob });
+          activeRec = null;
+          go('langwords', { lang });
+          return;
+        }
+        if (activeRec) return;
+        if (!Speech.recorderSupported()) { toast('Recording is not available on this device.'); return; }
+        try {
+          const rec = await Speech.startRecording();
+          activeRec = { rec, btn: b };
+          b.textContent = '■';
+        } catch (e) { toast('Microphone could not start. Check permissions.'); }
+      };
+    });
+    app().querySelectorAll('[data-lwplay]').forEach(b => {
+      b.onclick = () => {
+        const w = byId[b.dataset.lwplay];
+        const t = w.translations && w.translations[lang];
+        if (t && t.audioBlob) Speech.playBlob(t.audioBlob).catch(() => {});
+      };
+    });
+  };
+
+  const LANG_TAGS = { ar: 'ar-SA', so: 'so' };
+  const LANG_NAMES = { ar: 'Arabic', so: 'Somali' };
 
   screens.learngame = async function (params) {
     const mode = ['wp', 'ww', 'cc'].includes(params.mode) ? params.mode : 'wp';
-    if (!mg || mg.mode !== mode) mg = { mode, round: 1, total: 8, choices: 2, streak: 0 };
+    const lang = ['ar', 'so'].includes(params.lang) ? params.lang : null;
+    if (!mg || mg.mode !== mode || mg.lang !== lang) {
+      mg = { mode, lang, round: 1, total: breakActive ? 6 : 8, choices: 2, streak: 0 };
+    }
     mg.misses = 0;
+    const tLabel = (w) => (lang && w.translations && w.translations[lang] && w.translations[lang].label) ? w.translations[lang].label : w.label;
+    const tAudio = (w) => (lang && w.translations && w.translations[lang]) ? w.translations[lang].audioBlob : w.audioBlob;
 
     let pool, target, opts;
     if (mode === 'cc') {
       pool = GAME_COLORS.map(([name, hex]) => ({ id: 'c-' + name, label: name, hex }));
     } else {
-      const words = (await DB.allActive('vocabulary'))
+      let words = (await DB.allActive('vocabulary'))
         .filter(w => !w.phrase && ((w.symbolKey && Symbols.has(w.symbolKey)) || w.imageBlob instanceof Blob));
+      if (lang) {
+        words = words.filter(w => w.translations && w.translations[lang] &&
+          (w.translations[lang].label || w.translations[lang].audioBlob instanceof Blob));
+      }
       if (words.length < 4) {
-        screen(`${topbar('Learn', null)}<div class="screen">
-          <div class="notice">Learning games need a few words with pictures first.</div></div>`);
+        screen(`${topbar('Learn', 'learn')}<div class="screen">
+          <div class="notice">${lang
+            ? 'No ' + LANG_NAMES[lang] + ' words yet. A caregiver can add them in Translate &amp; record — each word needs a written translation or a recording.'
+            : 'Learning games need a few words with pictures first.'}</div></div>`);
         bindNav();
         return;
       }
@@ -496,12 +584,12 @@
 
     const optHTML = (w) => {
       if (mode === 'cc') return `<span class="mg-swatch" style="background:${w.hex}"></span>`;
-      if (mode === 'ww') return `<span class="lbl mg-text">${esc(w.label)}</span>`;
+      if (mode === 'ww') return `<span class="lbl mg-text">${esc(tLabel(w))}</span>`;
       return `<span class="sym">${symbolHTML(w)}</span>`;
     };
     const promptHTML = mode === 'cc'
       ? `<span class="mg-find">Find:</span> <span class="mg-swatch mg-swatch-sm" style="background:${target.hex}"></span> <span class="mg-word">${esc(target.label)}</span>`
-      : `<span class="mg-find">Find:</span> <span class="mg-word">${esc(target.label)}</span>`;
+      : `<span class="mg-find">Find:</span> <span class="mg-word">${esc(tLabel(target))}</span>${lang ? ` <span class="hint">(${esc(target.label)})</span>` : ''}`;
 
     screen(`${topbar('Learn', 'learn')}
       <div class="screen">
@@ -512,7 +600,9 @@
         <div class="pager"><span class="count">${mg.round} of ${mg.total}</span></div>
       </div>`);
     bindNav();
-    const speakTarget = () => Speech.speakItem({ label: target.label, speakAs: target.speakAs, audioBlob: target.audioBlob }, { rate: settings.speechRate, soundOn: settings.soundOn });
+    const speakTarget = () => Speech.speakItem(
+      { label: tLabel(target), speakAs: lang ? null : target.speakAs, audioBlob: tAudio ? tAudio(target) : target.audioBlob },
+      { rate: settings.speechRate, soundOn: settings.soundOn, lang: lang ? LANG_TAGS[lang] : undefined });
     $('#mg-say').onclick = speakTarget;
     speakTarget();
 
@@ -536,47 +626,200 @@
         mg.streak++;
         if (mg.streak % 3 === 0 && mg.choices < 4) mg.choices++;
         const finished = mg.round >= mg.total;
-        showCelebration({ label: target.label, audioBlob: target.audioBlob }, () => {
+        showCelebration({ label: tLabel(target), audioBlob: tAudio ? tAudio(target) : null, lang: lang ? LANG_TAGS[lang] : undefined }, () => {
           if (finished) {
             mg = null;
+            const backToPlay = breakActive;
+            if (backToPlay) { breakActive = false; playSec = 0; nudgeWarned = false; }
             screen(`${topbar('Learn', 'learn')}
               <div class="screen" style="justify-content:center;align-items:center;gap:20px">
                 <span class="cs-done">${Symbols.get(celeKey())}</span>
-                <div class="cele-word">All done!</div>
+                <div class="cele-word">${backToPlay ? 'Games are back!' : 'All done!'}</div>
                 <div class="row" style="display:flex;gap:14px">
+                  ${backToPlay ? '<button class="btn-primary btn-big" data-nav="play">Back to games</button>' : `
                   <button class="btn-primary btn-big" data-game-again="${mode}">Play again</button>
                   <button class="btn-big" data-nav="learn">More games</button>
-                  <button class="btn-big" data-nav="home">Home</button>
+                  <button class="btn-big" data-nav="home">Home</button>`}
                 </div>
               </div>`);
             bindNav();
             const again = app().querySelector('[data-game-again]');
-            if (again) again.onclick = () => go('learngame', { mode });
+            if (again) again.onclick = () => go('learngame', { mode, lang });
           } else {
             mg.round++;
-            go('learngame', { mode });
+            go('learngame', { mode, lang });
           }
         });
       };
     });
   };
 
-  /* ---------- Play: fun, non-educational games (paint + piano) ---------- */
+  /* ---------- Play: fun, non-educational games ----------
+     Caregivers can hide any game (Settings). A caregiver-set play limit
+     triggers a First/Then learning break with advance warning and a visible
+     countdown (Dettmer et al. 2000; visual-timer transition practice). */
+
+  const PLAY_SCREENS = ['play', 'paint', 'piano', 'pop', 'memory'];
+  let playSec = 0, nudgeWarned = false, breakActive = false;
+
+  function toast(msg) {
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 4500);
+  }
+
+  function nudgeTick() {
+    const lim = Number(settings.playNudge);
+    if (!lim || isNaN(lim)) { playSec = 0; nudgeWarned = false; return; }
+    if (!PLAY_SCREENS.includes(currentScreen)) return;
+    playSec += 15;
+    const limS = lim * 60;
+    if (!nudgeWarned && playSec >= limS - 120) {
+      nudgeWarned = true;
+      toast('Soon: a little learning, then games come back');
+    }
+    if (playSec >= limS) {
+      playSec = 0; nudgeWarned = false; breakActive = true;
+      go('learnbreak');
+    }
+  }
+
+  function balloonSVG(hex) {
+    return `<svg viewBox="0 0 96 96" aria-hidden="true"><ellipse cx="48" cy="38" rx="25" ry="31" fill="${hex}" stroke="#4a5a66" stroke-width="4"/><path d="M 44 69 L 52 69 L 48 76 Z" fill="${hex}" stroke="#4a5a66" stroke-width="3"/><path d="M 48 76 Q 44 84 48 92" stroke="#4a5a66" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
+  }
 
   screens.play = function () {
+    const hidden = Array.isArray(settings.gamesHidden) ? settings.gamesHidden : [];
+    const games = [
+      ['pop', 'Balloons', 'tok-social', balloonSVG('#C98BA6')],
+      ['memory', 'Memory', 'tok-describe', Symbols.get('same')],
+      ['paint', 'Paint', 'tok-question', Symbols.get('_paint')],
+      ['piano', 'Music', 'tok-place', Symbols.get('_piano')],
+    ].filter(g => !hidden.includes(g[0]));
     screen(`${topbar('Play', null)}
       <div class="screen">
-        <div class="tile-grid d4">
-          <button class="tile tok-social" data-fun="paint">
-            <span class="sym">${Symbols.get('_paint')}</span><span class="lbl">Paint</span></button>
-          <button class="tile tok-place" data-fun="piano">
-            <span class="sym">${Symbols.get('_piano')}</span><span class="lbl">Music</span></button>
-        </div>
+        ${games.length ? `<div class="tile-grid d6">
+          ${games.map(([id, name, tok, icon]) => `<button class="tile ${tok}" data-fun="${id}">
+            <span class="sym">${icon}</span><span class="lbl">${name}</span></button>`).join('')}
+        </div>` : '<div class="notice">The games are resting right now. A caregiver can wake them up in Settings.</div>'}
       </div>`);
     bindNav();
     app().querySelectorAll('[data-fun]').forEach(b => {
       b.onclick = () => { Speech.prime(); go(b.dataset.fun); };
     });
+  };
+
+  /* Balloons: tap to pop. Classic cause-and-effect joy. */
+  let popState = null;
+  screens.pop = function () {
+    if (!popState || popState.every(b => b.popped)) {
+      popState = Array.from({ length: 8 }, () => ({
+        color: GAME_COLORS[Math.floor(Math.random() * GAME_COLORS.length)][1], popped: false,
+      }));
+    }
+    screen(`${topbar('Balloons', 'play')}
+      <div class="screen">
+        <div class="tile-grid d12 pop-grid">
+          ${popState.map((b, i) => `<button class="tile pop-tile" data-b="${i}" aria-label="balloon">
+            ${b.popped ? `<span class="sym pop-burst">${Symbols.get('_star')}</span>` : `<span class="sym">${balloonSVG(b.color)}</span>`}
+          </button>`).join('')}
+        </div>
+      </div>`);
+    bindNav();
+    app().querySelectorAll('[data-b]').forEach(btn => {
+      btn.onclick = () => {
+        const b = popState[Number(btn.dataset.b)];
+        if (b.popped) return;
+        b.popped = true;
+        if (settings.soundOn) Speech.pop();
+        if (popState.every(x => x.popped)) {
+          setTimeout(() => { popState = null; go('pop'); }, 700);
+        } else {
+          go('pop');
+        }
+      };
+    });
+  };
+
+  /* Memory: classic pairs. Gently challenging, uses her own word pictures. */
+  let mem = null;
+  screens.memory = async function () {
+    if (!mem) {
+      const words = (await DB.allActive('vocabulary')).filter(w => w.symbolKey && Symbols.has(w.symbolKey) && !w.phrase);
+      const pool = [...words], picks = [];
+      while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+      const cards = [];
+      picks.forEach(w => { cards.push({ w }, { w }); });
+      for (let i = cards.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [cards[i], cards[j]] = [cards[j], cards[i]];
+      }
+      mem = { cards, up: [], matched: new Set(), busy: false };
+    }
+    const shown = (i) => mem.matched.has(i) || mem.up.includes(i);
+    screen(`${topbar('Memory', 'play')}
+      <div class="screen">
+        <div class="tile-grid d6">
+          ${mem.cards.map((c, i) => `<button class="tile mem-card ${shown(i) ? '' : 'mem-back'}" data-c="${i}" aria-label="card">
+            ${shown(i) ? `<span class="sym">${Symbols.get(c.w.symbolKey)}</span>` : '<span class="mem-q">?</span>'}
+          </button>`).join('')}
+        </div>
+      </div>`);
+    bindNav();
+    app().querySelectorAll('[data-c]').forEach(btn => {
+      btn.onclick = () => {
+        const i = Number(btn.dataset.c);
+        if (mem.busy || shown(i)) return;
+        mem.up.push(i);
+        if (mem.up.length === 2) {
+          const [a, b] = mem.up;
+          if (mem.cards[a].w.id === mem.cards[b].w.id) {
+            mem.matched.add(a); mem.matched.add(b); mem.up = [];
+            DB.logProgress({ type: 'memory', word: mem.cards[a].w.label, correct: true });
+            if (settings.soundOn) Speech.chime('quiet');
+            if (mem.matched.size === mem.cards.length) {
+              const label = 'You did it!';
+              showCelebration({ label }, () => { mem = null; go('memory'); });
+              return;
+            }
+          } else {
+            mem.busy = true;
+            go('memory');
+            setTimeout(() => { mem.up = []; mem.busy = false; go('memory'); }, 950);
+            return;
+          }
+        }
+        go('memory');
+      };
+    });
+  };
+
+  /* First/Then learning break with visible countdown (caregiver-configured). */
+  let lbTimer = null;
+  screens.learnbreak = function () {
+    if (lbTimer) clearInterval(lbTimer);
+    let secs = 5 * 60;
+    screen(`${topbar('Learning time', null)}
+      <div class="screen" style="justify-content:center;align-items:center;gap:18px">
+        <div class="ft-row">
+          <div class="ft-card"><span class="ft-tag">First</span>${Symbols.get('_learn')}<span class="lbl">One quick game</span></div>
+          <div class="ft-card then"><span class="ft-tag">Then</span>${Symbols.get('_paint')}<span class="lbl">Games come back</span></div>
+        </div>
+        <div class="cele-word" id="lb-timer">5:00</div>
+        <div class="hint">Games come back when the timer ends — or right after one quick learning game.</div>
+        <button class="btn-primary btn-big" id="lb-start">Start</button>
+      </div>`);
+    bindNav();
+    lbTimer = setInterval(() => {
+      if (currentScreen !== 'learnbreak') { clearInterval(lbTimer); return; }
+      secs--;
+      const el = $('#lb-timer');
+      if (el) el.textContent = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+      if (secs <= 0) { clearInterval(lbTimer); breakActive = false; go('play'); }
+    }, 1000);
+    $('#lb-start').onclick = () => { clearInterval(lbTimer); mg = null; go('learngame', { mode: 'wp' }); };
   };
 
   screens.paint = function () {
@@ -721,7 +964,8 @@
               <span class="sym">${symbolHTML(p)}</span>
               <span class="lbl">${esc(p.name)}</span>
             </button>`).join('') ||
-            `<div class="notice">No people added yet. A caregiver can add photos of family in the caregiver area.</div>`}
+            `<div class="notice" style="text-align:center">${Symbols.get('_people')}<br>
+             The family belongs here. A caregiver can add photos and voices in a minute — hold the Caregiver button on the home screen, then tap People.</div>`}
         </div>
       </div>`);
     bindNav();
@@ -760,11 +1004,18 @@
           <button class="menu-item" data-nav="restore"><b>Restore</b><span>Bring data back from a backup</span></button>
           <button class="menu-item" data-nav="recover"><b>Recover deleted</b><span>Nothing is ever really gone</span></button>
           <button class="menu-item" data-nav="progress"><b>Progress</b><span>Words used most, gently tracked</span></button>
+          <button class="menu-item" data-nav="langwords"><b>Translate &amp; record</b><span>Add another language, word by word</span></button>
           <button class="menu-item" data-nav="devicecheck"><b>Device check</b><span>Make sure everything works</span></button>
           <button class="menu-item" data-nav="storageview"><b>Storage</b><span>Space used on this iPad</span></button>
+          <button class="menu-item" id="cg-lock"><b>Lock device to this app</b><span>Stop her from wandering out</span></button>
         </div>
       </div>`);
     bindNav();
+    $('#cg-lock').onclick = () => showModal(`<h3>Lock the device to Nuran</h3>
+      <p>Both systems have a built-in child lock that keeps the device inside one app:</p>
+      <p><b>iPad / iPhone (Guided Access):</b> Settings &#8594; Accessibility &#8594; Guided Access &#8594; turn on and set a passcode. Then open Nuran and triple-click the side (or home) button to lock in. Triple-click and enter the passcode to leave.</p>
+      <p><b>Android (App pinning):</b> Settings &#8594; Security &#8594; App pinning &#8594; turn on. Open Nuran, open Recents, tap the app icon, choose Pin.</p>
+      <div class="actions"><button id="m-ok2" class="btn-primary">Got it</button></div>`) || ($('#m-ok2').onclick = closeModal);
   };
 
   /* ---------- Add / edit word (spec 3.4) ---------- */
@@ -1138,6 +1389,28 @@
             <option value="symbols" ${settings.pictureStyle === 'symbols' ? 'selected' : ''}>Symbols first — for symbol-based teaching</option>
           </select>
         </label>
+        <label>Play time before a learning break
+          <select id="s-nudge">
+            ${[['off', 'Off — no limit'], ['15', '15 minutes'], ['20', '20 minutes'], ['30', '30 minutes (recommended)'], ['45', '45 minutes']].map(([v, n]) =>
+              `<option value="${v}" ${String(settings.playNudge) === v ? 'selected' : ''}>${n}</option>`).join('')}
+          </select>
+        </label>
+        <div class="hint">After this much play, a First/Then screen offers one short learning game with a visible countdown, then games come back. A gentle warning appears two minutes before.</div>
+        <label>Games shown in Play
+          <div class="row" style="display:flex;gap:14px;flex-wrap:wrap">
+            ${[['pop', 'Balloons'], ['memory', 'Memory'], ['paint', 'Paint'], ['piano', 'Music']].map(([id, n]) =>
+              `<label style="flex-direction:row;gap:6px;align-items:center;font-weight:400">
+                <input type="checkbox" class="s-game" data-g="${id}" style="width:auto;min-height:24px" ${(settings.gamesHidden || []).includes(id) ? '' : 'checked'}> ${n}</label>`).join('')}
+          </div>
+        </label>
+        <label>Learning language (games only)
+          <select id="s-clang">
+            <option value="en" ${settings.contentLang !== 'ar' && settings.contentLang !== 'so' ? 'selected' : ''}>English only</option>
+            <option value="ar" ${settings.contentLang === 'ar' ? 'selected' : ''}>Add Arabic — a new tile appears in Learn</option>
+            <option value="so" ${settings.contentLang === 'so' ? 'selected' : ''}>Add Somali — a new tile appears in Learn</option>
+          </select>
+        </label>
+        <div class="hint">Talking and controls stay in English. Add the words themselves in Translate &amp; record.</div>
         <label>Keyboard (type to speak)
           <select id="s-kb">
             <option value="off" ${!settings.keyboard ? 'selected' : ''}>Hidden — until she is ready for letters</option>
@@ -1184,6 +1457,15 @@
     $('#s-cele').onchange = e => setSetting('celebration', e.target.value);
     $('#s-celev').onchange = e => setSetting('celebrationLevel', e.target.value);
     $('#s-pic').onchange = e => setSetting('pictureStyle', e.target.value);
+    $('#s-nudge').onchange = e => { setSetting('playNudge', e.target.value); playSec = 0; nudgeWarned = false; };
+    $('#s-clang').onchange = e => setSetting('contentLang', e.target.value);
+    app().querySelectorAll('.s-game').forEach(cb => {
+      cb.onchange = () => {
+        const hidden = (settings.gamesHidden || []).filter(g => g !== cb.dataset.g);
+        if (!cb.checked) hidden.push(cb.dataset.g);
+        setSetting('gamesHidden', hidden);
+      };
+    });
     $('#s-wordonly').onchange = e => setSetting('wordOnly', e.target.value === 'yes');
     $('#s-density').onchange = e => setSetting('density', Number(e.target.value));
     $('#s-rate').onchange = e => setSetting('speechRate', Number(e.target.value));
@@ -1487,6 +1769,7 @@
       await Seed.ensureEssentials();    // adds yes/no to installs seeded before they existed
       DB.requestPersistence();          // spec 2.3.3
       DB.startSnapshotTimer();          // spec 2.3.2
+      setInterval(nudgeTick, 15000);    // play-time learning break (v2.2)
       if ('serviceWorker' in navigator && location.protocol !== 'file:') {
         navigator.serviceWorker.register('sw.js').catch(e => DB.logError('sw register failed: ' + e.message));
       }

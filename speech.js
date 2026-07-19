@@ -67,15 +67,23 @@
         const ok = await Speech.playBlob(item.coreAudioBlob).catch(() => false);
         if (ok) return true;
       }
-      // 3. synthesis at slow rate
+      // 3. synthesis at slow rate (optionally in another language)
       if (window.speechSynthesis) {
         try {
           speechSynthesis.cancel();
           const u = new SpeechSynthesisUtterance(item.speakAs || item.label);
           u.rate = Math.min(10, Math.max(0.1, o.rate || 0.55));
           u.pitch = 1;
-          const v = pickVoice();
-          if (v) u.voice = v;
+          const lang = o.lang || item.lang;
+          if (lang) {
+            u.lang = lang;
+            const lv = (speechSynthesis.getVoices() || []).find(v => v.lang && v.lang.startsWith(lang.split('-')[0]));
+            if (lv) u.voice = lv;
+            else if (lang.startsWith('so')) return false; // no Somali voice exists: stay silent rather than mispronounce
+          } else {
+            const v = pickVoice();
+            if (v) u.voice = v;
+          }
           speechSynthesis.speak(u);
           return true;
         } catch (e) { DB.logError('synthesis failed: ' + e.message); }
@@ -158,6 +166,25 @@
           });
         },
       };
+    },
+
+    /* Balloon pop: a quick, satisfying descending blip. */
+    pop() {
+      try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(420, now);
+        osc.frequency.exponentialRampToValueAtTime(90, now + 0.12);
+        gain.gain.setValueAtTime(0.22, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.16);
+      } catch (e) { /* fine */ }
     },
 
     /* Single soft tone (piano keys). */

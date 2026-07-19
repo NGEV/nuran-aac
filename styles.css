@@ -133,6 +133,36 @@ input, select, textarea {
 .paint-eraser::after { content: '⌫'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--ink-soft); font-size: 1.1rem; }
 #paint-canvas { border: 2px solid var(--line); border-radius: 16px; background: var(--surface); touch-action: none; width: 100%; }
 
+/* ---------- Balloons & Memory ---------- */
+.pop-grid .pop-tile { min-height: 150px; }
+.pop-tile .sym svg { width: 100px; height: 100px; }
+.pop-burst svg { width: 80px; height: 80px; }
+.mem-card { min-height: 150px; }
+.mem-card .sym svg { width: 96px; height: 96px; }
+.mem-back { background: var(--cat-neutral-bg); border-color: var(--cat-neutral-edge); }
+.mem-q { font-size: 3rem; font-weight: 700; color: var(--ink-soft); }
+
+/* ---------- First/Then learning break ---------- */
+.ft-row { display: flex; gap: 18px; }
+.ft-card {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  background: var(--surface); border: 3px solid var(--cat-place-edge); border-radius: 20px;
+  padding: 22px 34px; min-width: 190px;
+}
+.ft-card.then { border-color: var(--cat-people-edge); background: var(--cat-people-bg); }
+.ft-card svg { width: 72px; height: 72px; }
+.ft-tag { font-weight: 700; color: var(--ink-soft); text-transform: uppercase; font-size: 0.85rem; letter-spacing: 0.06em; }
+
+/* ---------- Toast (gentle advance warning) ---------- */
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 26px; z-index: 70;
+  background: var(--surface); border: 2px solid var(--cat-describe-edge); border-radius: 14px;
+  padding: 12px 22px; font-weight: 600; box-shadow: 0 3px 14px rgba(47,58,67,0.12);
+}
+
+/* ---------- Translate & record ---------- */
+.lw-in { max-width: 260px; }
+
 /* ---------- Piano ---------- */
 .piano-row { flex: 1; display: flex; gap: 12px; min-height: 340px; }
 .piano-key { flex: 1; border-width: 3px; border-radius: 16px; min-height: 340px; }

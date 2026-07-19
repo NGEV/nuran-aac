@@ -76,6 +76,9 @@
     celebration: 'star',  // game celebration card: star | rainbow | balloons | check
     celebrationLevel: 'cheerful', // quiet | cheerful | festive (festive adds gentle motion, opt-in)
     pictureStyle: 'photos',       // photos (real photos when available) | symbols (symbol-first)
+    playNudge: 'off',             // minutes of play before a First/Then learning break; caregiver opt-in
+    gamesHidden: [],              // game ids hidden from the Play hub
+    contentLang: 'en',            // learning-content language (Model B: controls stay English)
     pinned: ['seed-bathroom'], // word ids always visible on Talk pages
     mode: 'core',
     density: 4,           // 3-5 choices per screen target (spec 4.4)

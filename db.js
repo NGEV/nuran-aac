@@ -95,7 +95,21 @@
     const out = {};
     for (const k of Object.keys(rec)) {
       const v = rec[k];
-      out[k] = (v instanceof Blob) ? { __blob: await blobToDataURL(v) } : v;
+      if (v instanceof Blob) {
+        out[k] = { __blob: await blobToDataURL(v) };
+      } else if (k === 'translations' && v && typeof v === 'object') {
+        // per-language nested blobs (v2.2 multilingual audio)
+        out[k] = {};
+        for (const lang of Object.keys(v)) {
+          out[k][lang] = {};
+          for (const f of Object.keys(v[lang] || {})) {
+            const fv = v[lang][f];
+            out[k][lang][f] = (fv instanceof Blob) ? { __blob: await blobToDataURL(fv) } : fv;
+          }
+        }
+      } else {
+        out[k] = v;
+      }
     }
     return out;
   }
@@ -104,7 +118,20 @@
     const out = {};
     for (const k of Object.keys(rec)) {
       const v = rec[k];
-      out[k] = (v && typeof v === 'object' && v.__blob) ? dataURLToBlob(v.__blob) : v;
+      if (v && typeof v === 'object' && v.__blob) {
+        out[k] = dataURLToBlob(v.__blob);
+      } else if (k === 'translations' && v && typeof v === 'object') {
+        out[k] = {};
+        for (const lang of Object.keys(v)) {
+          out[k][lang] = {};
+          for (const f of Object.keys(v[lang] || {})) {
+            const fv = v[lang][f];
+            out[k][lang][f] = (fv && typeof fv === 'object' && fv.__blob) ? dataURLToBlob(fv.__blob) : fv;
+          }
+        }
+      } else {
+        out[k] = v;
+      }
     }
     return out;
   }
