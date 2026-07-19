@@ -160,19 +160,43 @@
       };
     },
 
-    /* Soft two-note chime for game celebrations (quiet, brief). */
-    chime() {
+    /* Single soft tone (piano keys). */
+    tone(freq) {
       try {
         audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
         if (audioCtx.state === 'suspended') audioCtx.resume();
         const now = audioCtx.currentTime;
-        [[523.25, 0], [659.25, 0.18]].forEach(([f, off]) => {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.25, now + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+        osc.connect(gain).connect(audioCtx.destination);
+        osc.start(now);
+        osc.stop(now + 0.65);
+      } catch (e) { /* silence is fine */ }
+    },
+
+    /* Celebration chime; melody length scales with the caregiver's energy setting. */
+    chime(level) {
+      try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const now = audioCtx.currentTime;
+        const melodies = {
+          quiet:    [[523.25, 0], [659.25, 0.18]],
+          cheerful: [[523.25, 0], [659.25, 0.16], [783.99, 0.32], [1046.5, 0.5]],
+          festive:  [[523.25, 0], [659.25, 0.14], [783.99, 0.28], [659.25, 0.42], [783.99, 0.56], [1046.5, 0.72]],
+        };
+        (melodies[level] || melodies.cheerful).forEach(([f, off]) => {
           const osc = audioCtx.createOscillator();
           const gain = audioCtx.createGain();
           osc.type = 'sine';
           osc.frequency.value = f;
           gain.gain.setValueAtTime(0.0001, now + off);
-          gain.gain.exponentialRampToValueAtTime(0.18, now + off + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.20, now + off + 0.03);
           gain.gain.exponentialRampToValueAtTime(0.0001, now + off + 0.35);
           osc.connect(gain).connect(audioCtx.destination);
           osc.start(now + off);

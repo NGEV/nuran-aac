@@ -74,6 +74,8 @@
     keyboard: false,      // type-to-speak keyboard (caregiver enables when ready)
     helpEnabled: false,   // Help alarm tile on home (caregiver opt-in; see v2 design notes)
     celebration: 'star',  // game celebration card: star | rainbow | balloons | check
+    celebrationLevel: 'cheerful', // quiet | cheerful | festive (festive adds gentle motion, opt-in)
+    pictureStyle: 'photos',       // photos (real photos when available) | symbols (symbol-first)
     pinned: ['seed-bathroom'], // word ids always visible on Talk pages
     mode: 'core',
     density: 4,           // 3-5 choices per screen target (spec 4.4)

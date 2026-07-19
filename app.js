@@ -114,6 +114,10 @@
   }
 
   function symbolHTML(item) {
+    // Caregiver preference: real photos when available (default), or symbol-first
+    // for families following symbol-based programs (PCS/TEACCH-style teaching).
+    const symbolFirst = settings.pictureStyle === 'symbols';
+    if (symbolFirst && item.symbolKey && Symbols.has(item.symbolKey)) return Symbols.get(item.symbolKey);
     if (item.imageBlob instanceof Blob) {
       return `<img src="${trackURL(URL.createObjectURL(item.imageBlob))}" alt="">`;
     }
@@ -167,10 +171,11 @@
     screen(`
       <div id="help-banner"></div>
       <div class="screen">
-        <div class="home-grid">
-          <button class="home-btn talk" id="h-talk">${Symbols.get('_talk')}<span>Talk</span></button>
+        <div class="home-grid home-v2">
+          <button class="home-btn talk hero" id="h-talk">${Symbols.get('_talk')}<span>Talk</span></button>
           <button class="home-btn people" id="h-people">${Symbols.get('_people')}<span>People</span></button>
-          <button class="home-btn learn ${help ? '' : 'wide'}" id="h-learn">${Symbols.get('_learn')}<span>Learn</span></button>
+          <button class="home-btn learn" id="h-learn">${Symbols.get('_learn')}<span>Learn</span></button>
+          <button class="home-btn playfun ${help ? '' : 'wide'}" id="h-play">${Symbols.get('_paint')}<span>Play</span></button>
           ${help ? `<button class="home-btn helpme" id="h-help">${Symbols.get('_help')}<span>Help</span></button>` : ''}
         </div>
         <div class="home-footer">
@@ -180,6 +185,7 @@
     $('#h-talk').onclick = () => { Speech.prime(); go('talk'); };
     $('#h-people').onclick = () => { Speech.prime(); go('people'); };
     $('#h-learn').onclick = () => { Speech.prime(); go('learn'); };
+    $('#h-play').onclick = () => { Speech.prime(); go('play'); };
     if (help) $('#h-help').onclick = () => triggerHelp();
     longPress($('#h-gate'), () => go('caregiver'));
     refreshHelpBanner();
@@ -404,36 +410,82 @@
 
   let mg = null;
 
+  const GAME_COLORS = [
+    ['red', '#C97B7B'], ['blue', '#7D9CB0'], ['green', '#82A077'], ['yellow', '#C9B878'],
+    ['purple', '#9384B5'], ['orange', '#C9986B'], ['pink', '#C98BA6'], ['brown', '#9A7B5F'],
+  ];
+
+  function celeKey() {
+    return 'cele_' + (['star', 'rainbow', 'balloons', 'check'].includes(settings.celebration) ? settings.celebration : 'star');
+  }
+
+  /* Celebration with caregiver-tunable intensity:
+     quiet = small card + two notes; cheerful (default) = big card + melody;
+     festive = adds gentle floating stars (motion is OPT-IN only, per sensory rules). */
   function showCelebration(word, onNext) {
-    const key = 'cele_' + (['star', 'rainbow', 'balloons', 'check'].includes(settings.celebration) ? settings.celebration : 'star');
+    const level = ['quiet', 'cheerful', 'festive'].includes(settings.celebrationLevel) ? settings.celebrationLevel : 'cheerful';
     const ov = document.createElement('div');
-    ov.className = 'cele-overlay';
-    ov.innerHTML = `<div class="cele-card">
-      <span class="cs">${Symbols.get(key)}</span>
+    ov.className = 'cele-overlay cele-' + level;
+    const floaters = level === 'festive'
+      ? `<span class="cele-float f1">${Symbols.get('_star')}</span>
+         <span class="cele-float f2">${Symbols.get('_star')}</span>
+         <span class="cele-float f3">${Symbols.get('_star')}</span>` : '';
+    ov.innerHTML = `${floaters}<div class="cele-card">
+      <span class="cs">${Symbols.get(celeKey())}</span>
       <span class="cele-word">${esc(word.label)}</span>
     </div>`;
     document.body.appendChild(ov);
-    if (settings.soundOn) Speech.chime();
+    if (settings.soundOn) Speech.chime(level);
     Speech.speakItem(word, { rate: settings.speechRate, soundOn: settings.soundOn });
     const done = () => { if (ov.parentNode) ov.remove(); onNext(); };
     ov.onclick = done;
-    setTimeout(done, 2000);
+    setTimeout(done, level === 'quiet' ? 1600 : 2200);
   }
 
-  screens.learn = async function () {
-    const words = (await DB.allActive('vocabulary'))
-      .filter(w => !w.phrase && ((w.symbolKey && Symbols.has(w.symbolKey)) || w.imageBlob instanceof Blob));
-    if (words.length < 4) {
-      screen(`${topbar('Learn', null)}<div class="screen">
-        <div class="notice">Learning games need a few words with pictures first.</div></div>`);
-      bindNav();
-      return;
-    }
-    if (!mg) mg = { round: 1, total: 8, choices: 2, streak: 0 };
+  /* ---------- Learn hub: three matching games, one familiar engine ---------- */
 
-    const pool = [...words];
-    const target = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
-    const opts = [target];
+  screens.learn = async function () {
+    mg = null;
+    screen(`${topbar('Learn', null)}
+      <div class="screen">
+        <div class="tile-grid d6">
+          <button class="tile tok-thing" data-game="wp">
+            <span class="sym">${Symbols.get('apple')}</span><span class="lbl">Match Pictures</span></button>
+          <button class="tile tok-describe" data-game="ww">
+            <span class="sym">${Symbols.get('same')}</span><span class="lbl">Match Words</span></button>
+          <button class="tile tok-question" data-game="cc">
+            <span class="sym">${Symbols.get('cele_rainbow')}</span><span class="lbl">Match Colors</span></button>
+        </div>
+        <div class="hint" style="text-align:center">Games start easy and grow with her. Wrong taps never scold — after two tries, the answer gently shows itself.</div>
+      </div>`);
+    bindNav();
+    app().querySelectorAll('[data-game]').forEach(b => {
+      b.onclick = () => { Speech.prime(); go('learngame', { mode: b.dataset.game }); };
+    });
+  };
+
+  screens.learngame = async function (params) {
+    const mode = ['wp', 'ww', 'cc'].includes(params.mode) ? params.mode : 'wp';
+    if (!mg || mg.mode !== mode) mg = { mode, round: 1, total: 8, choices: 2, streak: 0 };
+    mg.misses = 0;
+
+    let pool, target, opts;
+    if (mode === 'cc') {
+      pool = GAME_COLORS.map(([name, hex]) => ({ id: 'c-' + name, label: name, hex }));
+    } else {
+      const words = (await DB.allActive('vocabulary'))
+        .filter(w => !w.phrase && ((w.symbolKey && Symbols.has(w.symbolKey)) || w.imageBlob instanceof Blob));
+      if (words.length < 4) {
+        screen(`${topbar('Learn', null)}<div class="screen">
+          <div class="notice">Learning games need a few words with pictures first.</div></div>`);
+        bindNav();
+        return;
+      }
+      pool = words;
+    }
+    pool = [...pool];
+    target = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    opts = [target];
     while (opts.length < mg.choices && pool.length) {
       opts.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
     }
@@ -442,53 +494,158 @@
       [opts[i], opts[j]] = [opts[j], opts[i]];
     }
 
-    screen(`${topbar('Learn', null)}
+    const optHTML = (w) => {
+      if (mode === 'cc') return `<span class="mg-swatch" style="background:${w.hex}"></span>`;
+      if (mode === 'ww') return `<span class="lbl mg-text">${esc(w.label)}</span>`;
+      return `<span class="sym">${symbolHTML(w)}</span>`;
+    };
+    const promptHTML = mode === 'cc'
+      ? `<span class="mg-find">Find:</span> <span class="mg-swatch mg-swatch-sm" style="background:${target.hex}"></span> <span class="mg-word">${esc(target.label)}</span>`
+      : `<span class="mg-find">Find:</span> <span class="mg-word">${esc(target.label)}</span>`;
+
+    screen(`${topbar('Learn', 'learn')}
       <div class="screen">
-        <button class="mg-prompt" id="mg-say" aria-label="Hear the word again">
-          <span class="mg-find">Find:</span> <span class="mg-word">${esc(target.label)}</span>
-        </button>
+        <button class="mg-prompt" id="mg-say" aria-label="Hear it again">${promptHTML}</button>
         <div class="tile-grid ${opts.length <= 2 ? 'd4' : 'd6'} mg-grid">
-          ${opts.map(w => `<button class="tile mg-tile" data-opt="${esc(w.id)}">
-            <span class="sym">${symbolHTML(w)}</span></button>`).join('')}
+          ${opts.map(w => `<button class="tile mg-tile" data-opt="${esc(w.id)}" aria-label="${esc(w.label)}">${optHTML(w)}</button>`).join('')}
         </div>
         <div class="pager"><span class="count">${mg.round} of ${mg.total}</span></div>
       </div>`);
     bindNav();
-    const speakTarget = () => Speech.speakItem(target, { rate: settings.speechRate, soundOn: settings.soundOn });
+    const speakTarget = () => Speech.speakItem({ label: target.label, speakAs: target.speakAs, audioBlob: target.audioBlob }, { rate: settings.speechRate, soundOn: settings.soundOn });
     $('#mg-say').onclick = speakTarget;
     speakTarget();
 
     app().querySelectorAll('[data-opt]').forEach(b => {
       b.onclick = () => {
         const right = b.dataset.opt === target.id;
-        DB.logProgress({ type: 'match-wp', word: target.label, correct: right, choices: opts.length });
+        DB.logProgress({ type: 'match-' + mode, word: target.label, correct: right, choices: opts.length, assisted: mg.misses >= 2 });
         if (!right) {
           mg.streak = 0;
-          b.classList.add('mg-dim'); // quiet, static; correct answer stays available
+          mg.misses++;
+          b.classList.add('mg-dim');
+          if (mg.misses >= 2) {
+            // Errorless assist: fade every wrong option so the answer shows itself
+            app().querySelectorAll('[data-opt]').forEach(o => {
+              if (o.dataset.opt !== target.id) o.classList.add('mg-dim');
+            });
+            speakTarget();
+          }
           return;
         }
         mg.streak++;
         if (mg.streak % 3 === 0 && mg.choices < 4) mg.choices++;
         const finished = mg.round >= mg.total;
-        showCelebration(target, () => {
+        showCelebration({ label: target.label, audioBlob: target.audioBlob }, () => {
           if (finished) {
             mg = null;
-            screen(`${topbar('Learn', null)}
+            screen(`${topbar('Learn', 'learn')}
               <div class="screen" style="justify-content:center;align-items:center;gap:20px">
-                <span class="cs-done">${Symbols.get('cele_' + (['star', 'rainbow', 'balloons', 'check'].includes(settings.celebration) ? settings.celebration : 'star'))}</span>
+                <span class="cs-done">${Symbols.get(celeKey())}</span>
                 <div class="cele-word">All done!</div>
                 <div class="row" style="display:flex;gap:14px">
-                  <button class="btn-primary btn-big" data-nav="learn">Play again</button>
+                  <button class="btn-primary btn-big" data-game-again="${mode}">Play again</button>
+                  <button class="btn-big" data-nav="learn">More games</button>
                   <button class="btn-big" data-nav="home">Home</button>
                 </div>
               </div>`);
             bindNav();
+            const again = app().querySelector('[data-game-again]');
+            if (again) again.onclick = () => go('learngame', { mode });
           } else {
             mg.round++;
-            go('learn');
+            go('learngame', { mode });
           }
         });
       };
+    });
+  };
+
+  /* ---------- Play: fun, non-educational games (paint + piano) ---------- */
+
+  screens.play = function () {
+    screen(`${topbar('Play', null)}
+      <div class="screen">
+        <div class="tile-grid d4">
+          <button class="tile tok-social" data-fun="paint">
+            <span class="sym">${Symbols.get('_paint')}</span><span class="lbl">Paint</span></button>
+          <button class="tile tok-place" data-fun="piano">
+            <span class="sym">${Symbols.get('_piano')}</span><span class="lbl">Music</span></button>
+        </div>
+      </div>`);
+    bindNav();
+    app().querySelectorAll('[data-fun]').forEach(b => {
+      b.onclick = () => { Speech.prime(); go(b.dataset.fun); };
+    });
+  };
+
+  screens.paint = function () {
+    screen(`${topbar('Paint', 'play')}
+      <div class="screen">
+        <div class="paint-bar">
+          ${GAME_COLORS.map(([name, hex], i) => `<button class="paint-chip ${i === 0 ? 'current' : ''}" data-color="${hex}" aria-label="${esc(name)}" style="background:${hex}"></button>`).join('')}
+          <button class="paint-chip paint-eraser" data-color="__erase" aria-label="Eraser"></button>
+          <button id="paint-clear" class="speak-clear" style="min-height:52px">Clear</button>
+        </div>
+        <canvas id="paint-canvas"></canvas>
+      </div>`);
+    bindNav();
+    const canvas = $('#paint-canvas');
+    const wrap = canvas.parentElement;
+    canvas.width = wrap.clientWidth - 4;
+    canvas.height = Math.max(320, window.innerHeight - canvas.getBoundingClientRect().top - 30);
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#FFFDF8';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = 14; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    let color = GAME_COLORS[0][1];
+    let drawing = false;
+    const pos = (e) => {
+      const r = canvas.getBoundingClientRect();
+      return [e.clientX - r.left, e.clientY - r.top];
+    };
+    canvas.addEventListener('pointerdown', (e) => {
+      drawing = true;
+      canvas.setPointerCapture(e.pointerId);
+      const [x, y] = pos(e);
+      ctx.beginPath(); ctx.moveTo(x, y);
+      ctx.strokeStyle = color === '__erase' ? '#FFFDF8' : color;
+      ctx.lineWidth = color === '__erase' ? 34 : 14;
+      ctx.lineTo(x + 0.1, y + 0.1); ctx.stroke();
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!drawing) return;
+      const [x, y] = pos(e);
+      ctx.lineTo(x, y); ctx.stroke();
+    });
+    canvas.addEventListener('pointerup', () => { drawing = false; });
+    app().querySelectorAll('[data-color]').forEach(b => {
+      b.onclick = () => {
+        color = b.dataset.color;
+        app().querySelectorAll('.paint-chip').forEach(c => c.classList.remove('current'));
+        b.classList.add('current');
+      };
+    });
+    $('#paint-clear').onclick = () => { ctx.fillStyle = '#FFFDF8'; ctx.fillRect(0, 0, canvas.width, canvas.height); };
+  };
+
+  screens.piano = function () {
+    const notes = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
+    screen(`${topbar('Music', 'play')}
+      <div class="screen">
+        <div class="piano-row">
+          ${notes.map((f, i) => `<button class="piano-key" data-note="${f}" aria-label="Note ${i + 1}"
+            style="background:${GAME_COLORS[i][1]}22;border-color:${GAME_COLORS[i][1]}"></button>`).join('')}
+        </div>
+        <div class="hint" style="text-align:center">Tap the keys to make music.</div>
+      </div>`);
+    bindNav();
+    app().querySelectorAll('[data-note]').forEach(b => {
+      b.addEventListener('pointerdown', () => {
+        if (settings.soundOn) Speech.tone(Number(b.dataset.note));
+        b.classList.add('pressed');
+        setTimeout(() => b.classList.remove('pressed'), 250);
+      });
     });
   };
 
@@ -968,6 +1125,19 @@
               `<option value="${v}" ${settings.celebration === v ? 'selected' : ''}>${n}</option>`).join('')}
           </select>
         </label>
+        <label>Celebration energy
+          <select id="s-celev">
+            <option value="quiet" ${settings.celebrationLevel === 'quiet' ? 'selected' : ''}>Quiet — small and brief</option>
+            <option value="cheerful" ${settings.celebrationLevel === 'cheerful' || !settings.celebrationLevel ? 'selected' : ''}>Cheerful — bigger, with a little melody</option>
+            <option value="festive" ${settings.celebrationLevel === 'festive' ? 'selected' : ''}>Festive — adds gentle floating stars (some movement)</option>
+          </select>
+        </label>
+        <label>Pictures on buttons
+          <select id="s-pic">
+            <option value="photos" ${settings.pictureStyle !== 'symbols' ? 'selected' : ''}>Real photos when added (default)</option>
+            <option value="symbols" ${settings.pictureStyle === 'symbols' ? 'selected' : ''}>Symbols first — for symbol-based teaching</option>
+          </select>
+        </label>
         <label>Keyboard (type to speak)
           <select id="s-kb">
             <option value="off" ${!settings.keyboard ? 'selected' : ''}>Hidden — until she is ready for letters</option>
@@ -1012,6 +1182,8 @@
     $('#s-kb').onchange = e => setSetting('keyboard', e.target.value === 'on');
     $('#s-help').onchange = e => setSetting('helpEnabled', e.target.value === 'on');
     $('#s-cele').onchange = e => setSetting('celebration', e.target.value);
+    $('#s-celev').onchange = e => setSetting('celebrationLevel', e.target.value);
+    $('#s-pic').onchange = e => setSetting('pictureStyle', e.target.value);
     $('#s-wordonly').onchange = e => setSetting('wordOnly', e.target.value === 'yes');
     $('#s-density').onchange = e => setSetting('density', Number(e.target.value));
     $('#s-rate').onchange = e => setSetting('speechRate', Number(e.target.value));

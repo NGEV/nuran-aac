@@ -146,6 +146,8 @@
     _help:    S(`<path d="M 48 14 Q 66 14 66 32 L 66 48 Q 66 56 72 62 L 24 62 Q 30 56 30 48 L 30 32 Q 30 14 48 14 Z" ${STF(ROSE)}/><path d="M 42 70 Q 48 76 54 70" ${ST}/>`),
     _star:    S(`<path d="M 48 14 L 56 36 L 80 36 L 61 50 L 68 74 L 48 60 L 28 74 L 35 50 L 16 36 L 40 36 Z" ${STF(YELLOW)}/>`),
     _learn:   S(`<path d="M 48 34 Q 34 26 18 30 L 18 74 Q 34 70 48 78 Q 62 70 78 74 L 78 30 Q 62 26 48 34 Z" ${STF(SAGE)}/><path d="M 48 34 L 48 78" ${ST}/><path d="M 48 6 L 51 14 L 60 14 L 53 19 L 56 28 L 48 22 L 40 28 L 43 19 L 36 14 L 45 14 Z" ${STF(YELLOW)}/>`),
+    _paint:   S(`<path d="M 48 14 Q 80 14 82 42 Q 84 66 62 70 Q 52 72 54 80 Q 56 88 44 86 Q 16 80 14 50 Q 12 20 48 14 Z" ${STF('#fffdf8')}/><circle cx="34" cy="34" r="6" ${STF(ROSE)}/><circle cx="58" cy="28" r="6" ${STF(BLUE)}/><circle cx="68" cy="48" r="6" ${STF(GREEN)}/><circle cx="30" cy="56" r="6" ${STF(YELLOW)}/>`),
+    _piano:   S(`<rect x="14" y="24" width="68" height="48" rx="6" ${STF('#fffdf8')}/><path d="M 31 24 L 31 72 M 48 24 L 48 72 M 65 24 L 65 72" ${ST}/><rect x="26" y="24" width="10" height="26" fill="${INK}"/><rect x="43" y="24" width="10" height="26" fill="${INK}"/><rect x="60" y="24" width="10" height="26" fill="${INK}"/>`),
   };
 
   // Public API
