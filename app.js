@@ -174,7 +174,7 @@
             ${Symbols.get('_star')}<span id="star-label"></span></button>
         </div>
         <div class="home-footer">
-          <button class="gate-btn" id="h-gate">Grown-ups: press and hold</button>
+          <button class="gate-btn" id="h-gate">Caregiver: press and hold</button>
         </div>
       </div>`);
     $('#h-talk').onclick = () => { Speech.prime(); go('talk'); };
@@ -347,7 +347,7 @@
               ${wordOnly ? '' : `<span class="sym">${symbolHTML(w)}</span>`}
               <span class="lbl">${esc(w.label)}</span>
             </button>`).join('') ||
-            '<div class="notice">No words here yet. A grown-up can add some in the caregiver area.</div>'}
+            '<div class="notice">No words here yet. A caregiver can add some in the caregiver area.</div>'}
         </div>
         ${pages > 1 ? `<div class="pager">
           <button id="pg-prev" ${page === 0 ? 'disabled' : ''}>&#8592; Back</button>
@@ -452,7 +452,7 @@
               <span class="sym">${symbolHTML(p)}</span>
               <span class="lbl">${esc(p.name)}</span>
             </button>`).join('') ||
-            `<div class="notice">No people added yet. A grown-up can add photos of family in the caregiver area.</div>`}
+            `<div class="notice">No people added yet. A caregiver can add photos of family in the caregiver area.</div>`}
         </div>
       </div>`);
     bindNav();
