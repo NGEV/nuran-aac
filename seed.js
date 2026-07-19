@@ -25,7 +25,7 @@
   // yes/no are not in the Universal Core set, but Banajee et al. (2003) found
   // they dominate toddlers' core utterances; a child must be able to answer.
   const CORE_WORDS = [
-    ['yes', 'yes', 'social'], ['no', 'no', 'social'],
+    ['yes', 'yes', 'social'], ['no', 'no', 'social'], ['hello', 'hello', 'social'],
     ['I', 'i', 'people'], ['you', 'you', 'people'], ['he', 'he', 'people'], ['she', 'she', 'people'],
     ['it', 'it', 'people'], ['that', 'that', 'people'],
     ['want', 'want', 'action'], ['like', 'like', 'action'], ['get', 'get', 'action'],
@@ -72,6 +72,9 @@
     wordOnly: false,      // picture+word by default (spec 3.1)
     sentenceBar: true,    // sentence-building bar on Talk/People screens
     keyboard: false,      // type-to-speak keyboard (caregiver enables when ready)
+    helpEnabled: false,   // Help alarm tile on home (caregiver opt-in; see v2 design notes)
+    celebration: 'star',  // game celebration card: star | rainbow | balloons | check
+    pinned: ['seed-bathroom'], // word ids always visible on Talk pages
     mode: 'core',
     density: 4,           // 3-5 choices per screen target (spec 4.4)
     backupReminderDays: 7,
@@ -101,6 +104,16 @@
       if (iWord && !iWord.speakAs) {
         iWord.speakAs = 'i';
         await DB.put('vocabulary', iWord);
+      }
+      // Migration: "hello" becomes a core word (the home tile it lived on is now Learn).
+      const helloWord = await DB.get('vocabulary', 'core-hello');
+      if (!helloWord) {
+        await DB.put('vocabulary', {
+          id: 'core-hello', label: 'hello', symbolKey: 'hello', colorToken: 'social',
+          categoryId: 'cat-core', core: true, sortOrder: 2.5,
+          imageBlob: null, audioBlob: null,
+          deleted: false, createdAt: now, updatedAt: now,
+        });
       }
       // Migration: My Phrases group for installs seeded before it existed.
       // Respects deliberate deletion: if the record exists at all, leave it be.

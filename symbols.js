@@ -129,6 +129,14 @@
     yes:      S(`<circle cx="48" cy="48" r="32" ${STF(GREEN)}/><path d="M 32 50 L 44 62 L 66 34" ${ST}/>`),
     no:       S(`<circle cx="48" cy="48" r="32" ${STF(ROSE)}/><path d="M 34 34 L 62 62 M 62 34 L 34 62" ${ST}/>`),
 
+    hello:    S(`<circle cx="40" cy="44" r="22" ${STF(YELLOW)}/><circle cx="33" cy="40" r="3" fill="${INK}"/><circle cx="47" cy="40" r="3" fill="${INK}"/><path d="M 33 52 Q 40 57 47 52" ${ST}/><g transform="translate(72,34) rotate(15)">${''}<path d="M -8 22 L -8 -2 M -3 -6 L -3 22 M 2 -8 L 2 22 M 7 -6 L 7 22 M -8 22 Q 0 30 7 22" ${ST}/></g>`),
+
+    /* ---------- Celebration cards (calm, static — games only) ---------- */
+    cele_star:    S(`<path d="M 48 10 L 58 36 L 86 36 L 63 52 L 71 80 L 48 63 L 25 80 L 33 52 L 10 36 L 38 36 Z" ${STF(YELLOW)}/><g ${ST}><path d="M 48 2 L 48 7 M 14 20 L 18 24 M 82 20 L 78 24"/></g>`),
+    cele_rainbow: S(`<path d="M 12 72 A 36 36 0 0 1 84 72" stroke="#B3808F" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M 22 72 A 26 26 0 0 1 74 72" stroke="#B3A266" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M 32 72 A 16 16 0 0 1 64 72" stroke="#82A077" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M 42 72 A 6 6 0 0 1 54 72" stroke="#7D9CB0" stroke-width="7" fill="none" stroke-linecap="round"/>`),
+    cele_balloons:S(`<ellipse cx="30" cy="34" rx="14" ry="17" ${STF(ROSE)}/><ellipse cx="62" cy="26" rx="13" ry="16" ${STF(BLUE)}/><ellipse cx="52" cy="56" rx="12" ry="15" ${STF(YELLOW)}/><path d="M 30 51 Q 28 66 34 80 M 62 42 Q 64 60 58 80 M 52 71 Q 52 76 54 82" ${ST}/>`),
+    cele_check:   S(`<circle cx="48" cy="48" r="34" ${STF(GREEN)}/><path d="M 30 50 L 43 63 L 67 34" ${ST}/>`),
+
     /* ---------- Category icons ---------- */
     _body:    S(person(44, 52, 1.8, YELLOW) + `<path d="M 74 34 C 62 26 60 16 68 12 C 73 10 76 15 76 17 C 76 15 79 10 84 12 C 92 16 90 26 78 34 Z" ${STF(ROSE)}/>`),
 
@@ -137,6 +145,7 @@
     _people:  S(person(32, 46, 1.5, YELLOW) + person(66, 50, 1.2, PEACH)),
     _help:    S(`<path d="M 48 14 Q 66 14 66 32 L 66 48 Q 66 56 72 62 L 24 62 Q 30 56 30 48 L 30 32 Q 30 14 48 14 Z" ${STF(ROSE)}/><path d="M 42 70 Q 48 76 54 70" ${ST}/>`),
     _star:    S(`<path d="M 48 14 L 56 36 L 80 36 L 61 50 L 68 74 L 48 60 L 28 74 L 35 50 L 16 36 L 40 36 Z" ${STF(YELLOW)}/>`),
+    _learn:   S(`<path d="M 48 34 Q 34 26 18 30 L 18 74 Q 34 70 48 78 Q 62 70 78 74 L 78 30 Q 62 26 48 34 Z" ${STF(SAGE)}/><path d="M 48 34 L 48 78" ${ST}/><path d="M 48 6 L 51 14 L 60 14 L 53 19 L 56 28 L 48 22 L 40 28 L 43 19 L 36 14 L 45 14 Z" ${STF(YELLOW)}/>`),
   };
 
   // Public API

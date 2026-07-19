@@ -163,15 +163,15 @@
   /* ---------- Home (spec 4.6: very few, very large) ---------- */
 
   screens.home = function () {
+    const help = settings.helpEnabled === true; // caregiver opt-in (v2 design)
     screen(`
       <div id="help-banner"></div>
       <div class="screen">
         <div class="home-grid">
           <button class="home-btn talk" id="h-talk">${Symbols.get('_talk')}<span>Talk</span></button>
           <button class="home-btn people" id="h-people">${Symbols.get('_people')}<span>People</span></button>
-          <button class="home-btn helpme" id="h-help">${Symbols.get('_help')}<span>Help</span></button>
-          <button class="home-btn" id="h-star" style="background:var(--cat-neutral-bg);border-color:var(--cat-neutral-edge)">
-            ${Symbols.get('_star')}<span id="star-label"></span></button>
+          <button class="home-btn learn ${help ? '' : 'wide'}" id="h-learn">${Symbols.get('_learn')}<span>Learn</span></button>
+          ${help ? `<button class="home-btn helpme" id="h-help">${Symbols.get('_help')}<span>Help</span></button>` : ''}
         </div>
         <div class="home-footer">
           <button class="gate-btn" id="h-gate">Caregiver: press and hold</button>
@@ -179,11 +179,8 @@
       </div>`);
     $('#h-talk').onclick = () => { Speech.prime(); go('talk'); };
     $('#h-people').onclick = () => { Speech.prime(); go('people'); };
-    $('#h-help').onclick = () => triggerHelp();
-    // Fourth tile speaks a gentle greeting — keeps the grid balanced and gives a safe "try me" spot
-    const star = $('#h-star');
-    $('#star-label').textContent = 'Hello';
-    star.onclick = () => speakAndFeedback(star, { id: 'greet', label: 'hello' });
+    $('#h-learn').onclick = () => { Speech.prime(); go('learn'); };
+    if (help) $('#h-help').onclick = () => triggerHelp();
     longPress($('#h-gate'), () => go('caregiver'));
     refreshHelpBanner();
   };
@@ -337,10 +334,19 @@
       </button>` : ''}
     </div>`;
 
+    /* Pinned row: caregiver-chosen words (Bathroom by default) visible on every Talk page */
+    const pinnedIds = Array.isArray(settings.pinned) ? settings.pinned : [];
+    const pinnedWords = pinnedIds.map(id => allWords.find(w => w.id === id)).filter(Boolean);
+    const pinnedRow = pinnedWords.length ? `<div class="pinned-row">
+      ${pinnedWords.map(w => `<button class="pin-tile tok-${esc(w.colorToken || 'describe')}" data-pword="${esc(w.id)}">
+        <span class="psym">${symbolHTML(w)}</span><span class="plbl">${esc(w.label)}</span></button>`).join('')}
+    </div>` : '';
+
     screen(`${topbar(cat.name || 'Talk', null)}
       <div class="screen">
         ${speakBarHTML()}
         ${strip}
+        ${pinnedRow}
         <div class="tile-grid ${dClass}">
           ${slice.map(w => `
             <button class="tile ${wordOnly ? 'word-only' : ''} tok-${esc(w.colorToken || cat.colorToken)}" data-word="${esc(w.id)}">
@@ -362,6 +368,17 @@
         : go('talk', { categoryId: b.dataset.goto });
     });
     bindSpeakBar();
+    app().querySelectorAll('[data-pword]').forEach(b => {
+      b.onclick = () => {
+        const w = allWords.find(x => x.id === b.dataset.pword);
+        if (!w) return;
+        speakAndFeedback(b, w);
+        if (settings.sentenceBar !== false && sentence.length < SENTENCE_MAX) {
+          sentence.push({ id: w.id, label: w.label, speakAs: w.speakAs, symbolKey: w.symbolKey, imageBlob: w.imageBlob, audioBlob: w.audioBlob });
+          updateSpeakBar();
+        }
+      };
+    });
     const byId = Object.fromEntries(slice.map(w => [w.id, w]));
     app().querySelectorAll('[data-word]').forEach(b => {
       b.onclick = () => {
@@ -378,6 +395,101 @@
       if ($('#pg-prev')) $('#pg-prev').onclick = () => nav(-1);
       if ($('#pg-next')) $('#pg-next').onclick = () => nav(1);
     }
+  };
+
+  /* ---------- Learn: word-to-picture matching (v2.0).
+     PECS-style receptive matching. Adaptive: starts at 2 choices, grows to 4
+     with a streak (ZPD/scaffolding). Wrong answers dim quietly — no punishment.
+     Celebration is a calm static card (no motion), caregiver-selectable. ---------- */
+
+  let mg = null;
+
+  function showCelebration(word, onNext) {
+    const key = 'cele_' + (['star', 'rainbow', 'balloons', 'check'].includes(settings.celebration) ? settings.celebration : 'star');
+    const ov = document.createElement('div');
+    ov.className = 'cele-overlay';
+    ov.innerHTML = `<div class="cele-card">
+      <span class="cs">${Symbols.get(key)}</span>
+      <span class="cele-word">${esc(word.label)}</span>
+    </div>`;
+    document.body.appendChild(ov);
+    if (settings.soundOn) Speech.chime();
+    Speech.speakItem(word, { rate: settings.speechRate, soundOn: settings.soundOn });
+    const done = () => { if (ov.parentNode) ov.remove(); onNext(); };
+    ov.onclick = done;
+    setTimeout(done, 2000);
+  }
+
+  screens.learn = async function () {
+    const words = (await DB.allActive('vocabulary'))
+      .filter(w => !w.phrase && ((w.symbolKey && Symbols.has(w.symbolKey)) || w.imageBlob instanceof Blob));
+    if (words.length < 4) {
+      screen(`${topbar('Learn', null)}<div class="screen">
+        <div class="notice">Learning games need a few words with pictures first.</div></div>`);
+      bindNav();
+      return;
+    }
+    if (!mg) mg = { round: 1, total: 8, choices: 2, streak: 0 };
+
+    const pool = [...words];
+    const target = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    const opts = [target];
+    while (opts.length < mg.choices && pool.length) {
+      opts.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    }
+    for (let i = opts.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [opts[i], opts[j]] = [opts[j], opts[i]];
+    }
+
+    screen(`${topbar('Learn', null)}
+      <div class="screen">
+        <button class="mg-prompt" id="mg-say" aria-label="Hear the word again">
+          <span class="mg-find">Find:</span> <span class="mg-word">${esc(target.label)}</span>
+        </button>
+        <div class="tile-grid ${opts.length <= 2 ? 'd4' : 'd6'} mg-grid">
+          ${opts.map(w => `<button class="tile mg-tile" data-opt="${esc(w.id)}">
+            <span class="sym">${symbolHTML(w)}</span></button>`).join('')}
+        </div>
+        <div class="pager"><span class="count">${mg.round} of ${mg.total}</span></div>
+      </div>`);
+    bindNav();
+    const speakTarget = () => Speech.speakItem(target, { rate: settings.speechRate, soundOn: settings.soundOn });
+    $('#mg-say').onclick = speakTarget;
+    speakTarget();
+
+    app().querySelectorAll('[data-opt]').forEach(b => {
+      b.onclick = () => {
+        const right = b.dataset.opt === target.id;
+        DB.logProgress({ type: 'match-wp', word: target.label, correct: right, choices: opts.length });
+        if (!right) {
+          mg.streak = 0;
+          b.classList.add('mg-dim'); // quiet, static; correct answer stays available
+          return;
+        }
+        mg.streak++;
+        if (mg.streak % 3 === 0 && mg.choices < 4) mg.choices++;
+        const finished = mg.round >= mg.total;
+        showCelebration(target, () => {
+          if (finished) {
+            mg = null;
+            screen(`${topbar('Learn', null)}
+              <div class="screen" style="justify-content:center;align-items:center;gap:20px">
+                <span class="cs-done">${Symbols.get('cele_' + (['star', 'rainbow', 'balloons', 'check'].includes(settings.celebration) ? settings.celebration : 'star'))}</span>
+                <div class="cele-word">All done!</div>
+                <div class="row" style="display:flex;gap:14px">
+                  <button class="btn-primary btn-big" data-nav="learn">Play again</button>
+                  <button class="btn-big" data-nav="home">Home</button>
+                </div>
+              </div>`);
+            bindNav();
+          } else {
+            mg.round++;
+            go('learn');
+          }
+        });
+      };
+    });
   };
 
   /* ---------- Type-to-speak keyboard (literacy bridge; caregiver enables in Settings) ---------- */
@@ -644,17 +756,30 @@
           <button id="mw-editcats">Edit groups</button>
         </div>
         <div class="list-rows">
-          ${words.map(w => `<div class="list-row">
+          ${words.map(w => {
+            const isPinned = (settings.pinned || []).includes(w.id);
+            return `<div class="list-row">
               <span class="thumb">${symbolHTML(w)}</span>
-              <div class="grow"><b>${esc(w.label)}</b>${w.core ? ' <span class="hint">(core word)</span>' : ''}</div>
+              <div class="grow"><b>${esc(w.label)}</b>${w.core ? ' <span class="hint">(core word)</span>' : ''}${isPinned ? ' <span class="hint">📌 pinned</span>' : ''}</div>
+              <button data-pin="${esc(w.id)}">${isPinned ? 'Unpin' : 'Pin'}</button>
               <button data-edit="${esc(w.id)}">Edit</button>
               <button class="btn-danger" data-del="${esc(w.id)}">Remove</button>
-            </div>`).join('') || '<div class="notice">No words in this group.</div>'}
+            </div>`;
+          }).join('') || '<div class="notice">No words in this group.</div>'}
         </div>
       </div>`);
     bindNav();
     $('#mw-cat').onchange = (e) => go('managewords', { categoryId: e.target.value });
     $('#mw-editcats').onclick = () => go('managecats');
+    app().querySelectorAll('[data-pin]').forEach(b => {
+      b.onclick = async () => {
+        const pins = Array.isArray(settings.pinned) ? [...settings.pinned] : [];
+        const i = pins.indexOf(b.dataset.pin);
+        if (i >= 0) pins.splice(i, 1); else pins.push(b.dataset.pin);
+        await setSetting('pinned', pins);
+        go('managewords', { categoryId: catId });
+      };
+    });
     app().querySelectorAll('[data-edit]').forEach(b => {
       b.onclick = async () => wordForm(await DB.get('vocabulary', b.dataset.edit));
     });
@@ -831,6 +956,18 @@
             <option value="off" ${settings.sentenceBar === false ? 'selected' : ''}>Hidden — words speak one at a time only</option>
           </select>
         </label>
+        <label>Help button on the home screen
+          <select id="s-help">
+            <option value="off" ${!settings.helpEnabled ? 'selected' : ''}>Hidden (default)</option>
+            <option value="on" ${settings.helpEnabled ? 'selected' : ''}>Shown — loud alarm to call a caregiver</option>
+          </select>
+        </label>
+        <label>Game celebration
+          <select id="s-cele">
+            ${[['star', 'Star'], ['rainbow', 'Rainbow'], ['balloons', 'Balloons'], ['check', 'Quiet check mark']].map(([v, n]) =>
+              `<option value="${v}" ${settings.celebration === v ? 'selected' : ''}>${n}</option>`).join('')}
+          </select>
+        </label>
         <label>Keyboard (type to speak)
           <select id="s-kb">
             <option value="off" ${!settings.keyboard ? 'selected' : ''}>Hidden — until she is ready for letters</option>
@@ -873,6 +1010,8 @@
     bindNav();
     $('#s-sbar').onchange = e => { setSetting('sentenceBar', e.target.value === 'on'); if (e.target.value === 'off') sentence = []; };
     $('#s-kb').onchange = e => setSetting('keyboard', e.target.value === 'on');
+    $('#s-help').onchange = e => setSetting('helpEnabled', e.target.value === 'on');
+    $('#s-cele').onchange = e => setSetting('celebration', e.target.value);
     $('#s-wordonly').onchange = e => setSetting('wordOnly', e.target.value === 'yes');
     $('#s-density').onchange = e => setSetting('density', Number(e.target.value));
     $('#s-rate').onchange = e => setSetting('speechRate', Number(e.target.value));

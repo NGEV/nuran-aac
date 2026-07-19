@@ -8,7 +8,7 @@
   'use strict';
 
   const DB_NAME = 'nuran-aac';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2; // v2: progressLog (append-only learning events, local only)
   const CRITICAL_STORES = ['vocabulary', 'categories', 'people', 'settings'];
   const ALL_DATA_STORES = ['vocabulary', 'categories', 'people', 'settings', 'history'];
   const SNAPSHOT_HOURLY_KEEP = 24;   // rolling 24 hourly
@@ -40,6 +40,7 @@
         mk('history', 'id', true);
         mk('snapshots', 'id', true);
         mk('errorLog', 'id', true);
+        mk('progressLog', 'id', true);
       };
       req.onsuccess = () => { _db = req.result; _db.onversionchange = () => _db.close(); resolve(_db); };
       req.onerror = () => reject(req.error);
@@ -184,6 +185,15 @@
           for (const r of excess) await hardDelete('history', r.id);
         }
       } catch (e) { DB.logError('history write failed: ' + e.message); }
+    },
+
+    /* ---------- Progress log (append-only learning events, local only).
+       Events are never mutated or destroyed; future "erase" features add
+       exclusion flags via new records rather than deleting (Samia's design). */
+    async logProgress(event) {
+      try {
+        await put('progressLog', Object.assign({ ts: Date.now() }, event));
+      } catch (e) { DB.logError('progress write failed: ' + e.message); }
     },
 
     /* ---------- Error log (local only — spec 6.3) ---------- */

@@ -160,6 +160,27 @@
       };
     },
 
+    /* Soft two-note chime for game celebrations (quiet, brief). */
+    chime() {
+      try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const now = audioCtx.currentTime;
+        [[523.25, 0], [659.25, 0.18]].forEach(([f, off]) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.value = f;
+          gain.gain.setValueAtTime(0.0001, now + off);
+          gain.gain.exponentialRampToValueAtTime(0.18, now + off + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + off + 0.35);
+          osc.connect(gain).connect(audioCtx.destination);
+          osc.start(now + off);
+          osc.stop(now + off + 0.4);
+        });
+      } catch (e) { /* silence is fine */ }
+    },
+
     /* ---------- Help alert sound (spec 6.4): loud, distinct, no network.
        Generated with WebAudio so nothing needs to be bundled or loaded. ---------- */
     startHelpAlarm() {
