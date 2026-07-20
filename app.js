@@ -1461,6 +1461,8 @@
           <button class="menu-item" data-nav="langwords"><b>${L('languages')}Translate &amp; record</b><span>Add another language, word by word</span></button>
           <button class="menu-item" data-nav="devicecheck"><b>${L('clipboard-check')}Device check</b><span>Make sure everything works</span></button>
           <button class="menu-item" data-nav="storageview"><b>${L('hard-drive')}Storage</b><span>Space used on this iPad</span></button>
+          <button class="menu-item" data-nav="printboard"><b>${L('printer')}Paper board</b><span>Print words on paper — the low-tech backup</span></button>
+          <button class="menu-item" data-nav="helpview"><b>${L('clipboard-check')}Help &amp; manual</b><span>Quick answers and the illustrated user manual</span></button>
           <button class="menu-item" id="cg-lock"><b>${L('lock')}Lock device to this app</b><span>Keep the device inside Nuran</span></button>
           <button class="menu-item" data-nav="welcome"><b>${L('wand-sparkles')}Setup wizard</b><span>Motion, celebrations, and voice, with demos</span></button>
         </div>
@@ -1758,52 +1760,64 @@
   screens.managewords = async function (params) {
     const cats = (await DB.allActive('categories')).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
     const catId = params.categoryId || (cats[0] && cats[0].id);
-    const words = (await DB.allActive('vocabulary'))
+    const allWords = await DB.allActive('vocabulary');
+    const catName = (id) => { const c = cats.find(x => x.id === id); return c ? c.name : ''; };
+    const rowHTML = (w, showGroup) => {
+      const isPinned = (settings.pinned || []).includes(w.id);
+      return `<div class="list-row">
+        <span class="thumb">${symbolHTML(w)}</span>
+        <div class="grow"><b>${esc(w.label)}</b>${showGroup ? ` <span class="hint">in ${esc(catName(w.categoryId))}</span>` : ''}${w.core ? ' <span class="hint">(core word)</span>' : ''}${isPinned ? ' <span class="hint">📌 pinned</span>' : ''}</div>
+        <button data-pin="${esc(w.id)}">${isPinned ? 'Unpin' : 'Pin'}</button>
+        <button data-edit="${esc(w.id)}">Edit</button>
+        <button class="btn-danger" data-del="${esc(w.id)}">Remove</button>
+      </div>`;
+    };
+    const groupList = () => allWords
       .filter(w => w.categoryId === catId)
-      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map(w => rowHTML(w, false)).join('') || '<div class="notice">No words in this group.</div>';
     screen(`${topbar('Words & groups', 'caregiver')}
       <div class="screen">
         <div class="row" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
-          <select id="mw-cat" style="max-width:300px">
+          <select id="mw-cat" style="max-width:300px" aria-label="Word group">
             ${cats.map(c => `<option value="${esc(c.id)}" ${c.id === catId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
           </select>
           <button id="mw-editcats">Edit groups</button>
+          <input id="mw-search" type="search" placeholder="Search every group…" aria-label="Search all words" style="max-width:240px" maxlength="30">
         </div>
-        <div class="list-rows">
-          ${words.map(w => {
-            const isPinned = (settings.pinned || []).includes(w.id);
-            return `<div class="list-row">
-              <span class="thumb">${symbolHTML(w)}</span>
-              <div class="grow"><b>${esc(w.label)}</b>${w.core ? ' <span class="hint">(core word)</span>' : ''}${isPinned ? ' <span class="hint">📌 pinned</span>' : ''}</div>
-              <button data-pin="${esc(w.id)}">${isPinned ? 'Unpin' : 'Pin'}</button>
-              <button data-edit="${esc(w.id)}">Edit</button>
-              <button class="btn-danger" data-del="${esc(w.id)}">Remove</button>
-            </div>`;
-          }).join('') || '<div class="notice">No words in this group.</div>'}
-        </div>
+        <div class="list-rows" id="mw-list">${groupList()}</div>
       </div>`);
     bindNav();
     $('#mw-cat').onchange = (e) => go('managewords', { categoryId: e.target.value });
     $('#mw-editcats').onclick = () => go('managecats');
-    app().querySelectorAll('[data-pin]').forEach(b => {
-      b.onclick = async () => {
+    $('#mw-search').oninput = (e) => {
+      const q = e.target.value.trim().toLowerCase();
+      if (!q) { $('#mw-list').innerHTML = groupList(); return; }
+      const hits = allWords
+        .filter(w => String(w.label).toLowerCase().includes(q))
+        .sort((a, b) => String(a.label).localeCompare(String(b.label)))
+        .slice(0, 30);
+      $('#mw-list').innerHTML = hits.map(w => rowHTML(w, true)).join('')
+        || '<div class="notice">No word matches that. It may rest in Recover deleted.</div>';
+    };
+    /* One delegated handler keeps buttons alive across search re-renders. */
+    $('#mw-list').addEventListener('click', async (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      if (btn.dataset.pin) {
         const pins = Array.isArray(settings.pinned) ? [...settings.pinned] : [];
-        const i = pins.indexOf(b.dataset.pin);
-        if (i >= 0) pins.splice(i, 1); else pins.push(b.dataset.pin);
+        const i = pins.indexOf(btn.dataset.pin);
+        if (i >= 0) pins.splice(i, 1); else pins.push(btn.dataset.pin);
         await setSetting('pinned', pins);
         go('managewords', { categoryId: catId });
-      };
-    });
-    app().querySelectorAll('[data-edit]').forEach(b => {
-      b.onclick = async () => wordForm(await DB.get('vocabulary', b.dataset.edit));
-    });
-    app().querySelectorAll('[data-del]').forEach(b => {
-      b.onclick = async () => {
-        const w = await DB.get('vocabulary', b.dataset.del);
+      } else if (btn.dataset.edit) {
+        wordForm(await DB.get('vocabulary', btn.dataset.edit));
+      } else if (btn.dataset.del) {
+        const w = await DB.get('vocabulary', btn.dataset.del);
         const ok = await confirmModal('Remove this word?',
           `<p>"${esc(w.label)}" will be hidden from the app. It is not gone forever — you can bring it back any time from <b>Recover deleted</b>.</p>`, 'Remove');
         if (ok) { await DB.softDelete('vocabulary', w.id); go('managewords', { categoryId: catId }); }
-      };
+      }
     });
   };
 
@@ -2191,6 +2205,80 @@
         rate: Number($('#s-rate').value), soundOn: true, voiceURI: settings.voiceURI,
       });
     };
+  };
+
+  /* ---------- Help & manual: offline FAQ + the bundled user manual.
+     The manual PDF ships inside the app (SW precache + iOS www), so help
+     never depends on having a connection. ---------- */
+
+  screens.helpview = function () {
+    const qa = [
+      ['No sound when tapping words',
+       'Check the device volume and mute switch, then Settings → Voice &amp; sound → Sound → On. Tap one word yourself — devices sometimes need one tap after reopening before speech starts.'],
+      ['The voice sounds robotic',
+       'Try another voice or speaking style in Settings → Voice &amp; sound. For the words that matter most, record your own voice — a family recording always wins over the device voice.'],
+      ['A word or group disappeared',
+       'Caregiver area → Recover deleted → Bring back. Nothing is ever permanently deleted by normal use.'],
+      ['The microphone will not record',
+       'Allow microphone access for Nuran in the device Settings. Recording is optional — without it the app speaks words by itself.'],
+      ['The moving games are missing',
+       'Motion is set to None — a choice, not a bug. Raise it in Settings → Motion &amp; celebrations if your child enjoys movement.'],
+      ['The Help alarm will not stop',
+       'Press and <em>hold</em> the button on the alert screen until it completes. A quick tap will not stop it — that is intentional, so a child cannot dismiss their own call for help.'],
+      ['My child keeps leaving the app',
+       'Caregiver area → Lock device shows the built-in child lock: Guided Access on iPad and iPhone, App pinning on Android.'],
+      ['Worried about losing the words',
+       'Caregiver area → Back up creates one file with everything — words, photos, recordings, settings. Save it to iCloud Drive or Files. Restore rebuilds everything from it on any device.'],
+    ];
+    screen(`${topbar('Help & manual', 'caregiver')}
+      <div class="screen">
+        <div class="menu-list">
+          <button class="menu-item" id="hv-manual"><b>${L('printer')}Open the user manual (PDF)</b><span>An illustrated guide to every screen — stored in the app, works offline</span></button>
+          <button class="menu-item" id="hv-support"><b>${L('message-circle')}Online support page</b><span>ngev.github.io/nuran-aac/support.html — needs an internet connection</span></button>
+        </div>
+        <h3 style="margin:14px 0 4px">Quick answers</h3>
+        ${qa.map(([q, a]) => `<details class="faq-item"><summary>${q}</summary><p>${a}</p></details>`).join('')}
+        <div class="hint">Nuran is free and open source, built by a family. Nothing your child does ever leaves this device.</div>
+      </div>`);
+    bindNav();
+    $('#hv-manual').onclick = () => window.open('./nuran-user-manual.pdf', '_blank');
+    $('#hv-support').onclick = () => window.open('https://ngev.github.io/nuran-aac/support.html', '_blank');
+  };
+
+  /* ---------- Paper board: printable low-tech backup. Standard AAC practice —
+     the paper copy still talks when the device is charging, wet, or left at home. ---------- */
+
+  screens.printboard = async function (params) {
+    const cats = (await DB.allActive('categories')).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    const allWords = await DB.allActive('vocabulary');
+    const usable = cats.filter(c => allWords.some(w => w.categoryId === c.id && !w.phrase));
+    const catId = params.categoryId || 'cat-core';
+    const cat = usable.find(c => c.id === catId) || usable[0];
+    const words = allWords.filter(w => cat && w.categoryId === cat.id && !w.phrase)
+      .sort((a, b) => (a.sortOrder ?? a.createdAt ?? 0) - (b.sortOrder ?? b.createdAt ?? 0))
+      .slice(0, 24);
+    screen(`${topbar('Paper board', 'caregiver')}
+      <div class="screen">
+        <div class="row no-print" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+          <select id="pb-cat" aria-label="Group to print" style="max-width:300px">
+            ${usable.map(c => `<option value="${esc(c.id)}" ${cat && c.id === cat.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
+          </select>
+          <button id="pb-print" class="btn-primary">Print</button>
+        </div>
+        <div class="hint no-print">A paper copy is the classic AAC safety net: it still talks when the
+          device is charging, wet, or left at home. Print a group, keep it where meals and play happen,
+          and let your child point. Pointing at paper counts as talking too.</div>
+        <div class="print-area">
+          <div class="print-title">${esc((cat && cat.name) || 'Words')} — Nuran paper board</div>
+          <div class="print-board">
+            ${words.map(w => `<div class="print-tile"><span class="sym">${symbolHTML(w)}</span><span class="lbl">${esc(w.label)}</span></div>`).join('')
+              || '<div class="notice">No words in this group yet.</div>'}
+          </div>
+        </div>
+      </div>`);
+    bindNav();
+    $('#pb-cat').onchange = (e) => go('printboard', { categoryId: e.target.value });
+    $('#pb-print').onclick = () => window.print();
   };
 
   /* ---------- Backup / restore (spec 2.3) ---------- */

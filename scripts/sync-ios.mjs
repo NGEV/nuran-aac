@@ -17,6 +17,7 @@ const sharedFiles = [
   'lucide.js',
   'manifest.webmanifest',
   'mulberry-map.js',
+  'nuran-user-manual.pdf',
   'seed.js',
   'speech.js',
   'styles.css',

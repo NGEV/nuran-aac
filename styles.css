@@ -490,3 +490,23 @@ input, select, textarea {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }
+
+/* ---------- Paper board (printable low-tech backup) ---------- */
+.print-title { font-weight: 700; font-size: 1.15rem; margin: 10px 0 4px; }
+.print-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.print-tile { border: 2.5px solid var(--ink-soft); border-radius: 14px; background: #fff;
+  padding: 12px 6px; text-align: center; break-inside: avoid; }
+.print-tile .sym svg, .print-tile .sym img { width: 72px; height: 72px; object-fit: contain; }
+.print-tile .lbl { display: block; font-weight: 700; font-size: 1.15rem; margin-top: 4px; color: var(--ink); }
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: absolute; left: 0; top: 0; width: 100%; }
+  .print-tile { border-color: #444; }
+}
+
+/* ---------- Help & manual FAQ ---------- */
+.faq-item { background: var(--surface); border: 2px solid var(--line); border-radius: 12px;
+  padding: 10px 14px; margin-bottom: 8px; }
+.faq-item summary { font-weight: 700; cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--ink); }
+.faq-item p { margin: 8px 0 4px; color: var(--ink-soft); }
