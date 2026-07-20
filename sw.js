@@ -2,7 +2,7 @@
    Cache-first app shell so everything opens with no connection (spec 2.4).
    Bump CACHE_VERSION when shipping changes. */
 
-const CACHE_VERSION = 'nuran-v18';
+const CACHE_VERSION = 'nuran-v19';
 const SHELL = [
   './',
   './index.html',
