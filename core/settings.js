@@ -13,12 +13,13 @@
     helpEnabled: false,
     celebration: 'star',
     celebrationLevel: 'cheerful',
-    pictureStyle: 'photos',
+    pictureStyle: 'best',
     playNudge: 'off',
     gamesHidden: [],
     contentLang: 'en',
     motionLevel: 'none',
     voicePitch: 1.0,
+    voiceURI: 'auto',
     pinned: ['seed-bathroom'],
     mode: 'core',
     density: 4,
@@ -42,6 +43,8 @@
   const stringIds = (value, max) => Array.isArray(value)
     ? [...new Set(value.filter(v => typeof v === 'string' && v.length <= 100))].slice(0, max)
     : [];
+  const shortString = (value, fallback, max) => typeof value === 'string' && value.length <= max
+    ? value : fallback;
 
   function normalize(input) {
     const out = Object.assign({}, defaults, input || {});
@@ -51,7 +54,11 @@
     out.backupReminderDays = enumValue(Number(out.backupReminderDays), [3, 7, 14, 30], defaults.backupReminderDays);
     out.celebration = enumValue(out.celebration, ['star', 'rainbow', 'balloons', 'check'], defaults.celebration);
     out.celebrationLevel = enumValue(out.celebrationLevel, ['quiet', 'cheerful', 'festive'], defaults.celebrationLevel);
-    out.pictureStyle = enumValue(out.pictureStyle, ['photos', 'symbols', 'mulberry'], defaults.pictureStyle);
+    // `photos` was the old default. Its intended behavior is now the best-available chain:
+    // caregiver photo → Mulberry → original symbol, so migrate it without losing any photo.
+    if (out.pictureStyle === 'photos') out.pictureStyle = 'best';
+    out.pictureStyle = enumValue(out.pictureStyle, ['best', 'symbols', 'mulberry'], defaults.pictureStyle);
+    out.voiceURI = shortString(out.voiceURI, defaults.voiceURI, 300);
     out.playNudge = enumValue(String(out.playNudge), ['off', '15', '20', '30', '45'], defaults.playNudge);
     out.contentLang = enumValue(out.contentLang, ['en', 'ar', 'so'], defaults.contentLang);
     out.motionLevel = enumValue(out.motionLevel, ['none', 'gentle', 'full'], defaults.motionLevel);

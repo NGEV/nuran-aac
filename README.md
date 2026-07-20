@@ -13,9 +13,31 @@ The child-facing Home screen offers **Talk**, **People**, **Learn**, and **Play*
 enable an on-device Help alarm. Large buttons, stable positions, pictures with labels, calm colors,
 and forgiving learning activities reduce memory and motor-planning demands.
 
-Talk includes core vocabulary, category groups, a sentence bar, personal words, family voices, and
-an optional type-to-speak keyboard. Words and sentences speak on the device. Recorded family audio
+The held v17 presentation uses a shared professional visual layer across child and caregiver
+screens: a bright sunlit-storybook palette, expressive static color-blocking, consistent white
+symbol wells, richer semantic surfaces, a stable single-line Talk group rail, and clearly accented
+caregiver cards and settings sections. The familiar child routes, AAC symbol meanings, large target
+geometry, and caregiver-controlled motion are unchanged.
+
+Talk includes the complete Project Core 36 starter set plus an adjacent **Sentence Words** extension
+for grammatical building blocks such as `is`, `am`, `are`, `a`, `the`, `and`, pronouns,
+prepositions, and other high-use words. It also includes category groups, a sentence bar, personal
+words, family voices, and an optional type-to-speak keyboard. Words and sentences speak on the device. Recorded family audio
 takes priority over the device voice.
+
+## Pictures and voices
+
+The default **Best available** picture mode uses a caregiver's photo when one has been added, then
+the bundled Mulberry AAC symbol library, then Nuran's complete original symbol set. The same resolver
+drives Home, Talk words and groups, Talk Anytime, Learn, Play, People fallbacks, and setup previews,
+so imported artwork is visible immediately without creating blank concepts. Caregivers may instead
+choose Mulberry-first or the original Nuran set throughout.
+
+The default **Automatic** voice mode ranks the English voices actually installed on the device,
+preferring offline and enhanced/natural voices when the browser identifies those qualities. Settings
+also lists the installed voices by name so a caregiver can save a specific choice. Warm, Clear, and
+Calm remain honest speaking styles applied to that selected voice; they adjust rate and pitch rather
+than pretending to be separate voices. Family recordings remain the first playback choice.
 
 ## Talk Anytime
 
@@ -64,10 +86,11 @@ For a child device, consider iPadOS **Guided Access** so the device remains insi
 
 Settings are grouped by task: Talk & access, Voice & sound, Pictures & language, Learn & Play,
 Motion & celebrations, and Data reminders. Changes save immediately. Motion defaults to None and can
-be set to Gentle or Full by a caregiver.
+be set to Gentle or Full by a caregiver. The four-step full setup makes the actual device voice and
+picture-library choice visible before motion and celebration choices.
 
 See `TECHNICAL.md` for architecture, verification, and native synchronization. The illustrated
-user manual (`nuran-user-manual.pdf`, Version 2) covers this update: first-time setup, Talk
+user manual (`nuran-user-manual.pdf`, Version 3) covers this update: first-time setup, Talk
 Anytime, Learn & Play, the Visual Routine, Caregiver Today, and grouped Settings.
 
 ## License

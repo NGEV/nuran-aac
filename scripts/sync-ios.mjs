@@ -20,6 +20,7 @@ const sharedFiles = [
   'seed.js',
   'speech.js',
   'styles.css',
+  'visual-system.css',
   'sw.js',
   'symbols.js',
 ];

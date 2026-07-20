@@ -12,25 +12,75 @@
   let currentAudio = null;
   let audioCtx = null;
   let helpTimer = null;
+  const voiceListeners = new Set();
+
+  const voiceId = (voice) => voice ? (voice.voiceURI || voice.name || '') : '';
+  const languageBase = (lang) => String(lang || 'en-US').split(/[-_]/)[0].toLowerCase();
+
+  function voiceScore(voice, requestedLanguage) {
+    const name = String(voice.name || '');
+    const uri = String(voice.voiceURI || '');
+    const requested = String(requestedLanguage || 'en-US').toLowerCase();
+    const lang = String(voice.lang || '').toLowerCase();
+    let score = 0;
+    if (lang === requested) score += 80;
+    else if (languageBase(lang) === languageBase(requested)) score += 50;
+    if (voice.localService) score += 60; // Nuran must keep speaking offline.
+    if (voice.default) score += 8;
+    if (/premium|enhanced|neural|natural|siri/i.test(name + ' ' + uri)) score += 45;
+    // Modern Apple voices often do not expose their quality tier through Web Speech.
+    if (/\b(ava|zoe|nathan|samantha|evan|allison|susan|tom)\b/i.test(name)) score += 18;
+    if (/compact|novelty|bells|bad news|bubbles|cellos|good news|organ|whisper|zarvox/i.test(name)) score -= 100;
+    return score;
+  }
 
   function loadVoices() {
+    const before = voices.map(voiceId).join('|');
     try {
       voices = window.speechSynthesis ? (speechSynthesis.getVoices() || []) : [];
     } catch (e) { voices = []; }
+    const after = voices.map(voiceId).join('|');
+    if (before !== after) voiceListeners.forEach(listener => { try { listener(); } catch (e) { /* ignore UI listener */ } });
   }
   if (window.speechSynthesis) {
     loadVoices();
-    speechSynthesis.onvoiceschanged = loadVoices;
+    if (speechSynthesis.addEventListener) speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    else speechSynthesis.onvoiceschanged = loadVoices;
   }
 
-  function pickVoice() {
+  function availableVoices(language) {
     if (!voices.length) loadVoices();
-    // Prefer an en-US local voice; Samantha is the common default on iOS.
-    return voices.find(v => v.lang === 'en-US' && v.localService)
-        || voices.find(v => v.lang && v.lang.startsWith('en') && v.localService)
-        || voices.find(v => v.lang === 'en-US')
-        || voices.find(v => v.lang && v.lang.startsWith('en'))
-        || null;
+    const requested = language || 'en-US';
+    const base = languageBase(requested);
+    const matching = voices.filter(voice => languageBase(voice.lang) === base);
+    const offline = matching.filter(voice => voice.localService);
+    const candidates = offline.length ? offline : matching;
+    return [...candidates].sort((a, b) =>
+      voiceScore(b, requested) - voiceScore(a, requested)
+      || String(a.name || '').localeCompare(String(b.name || '')));
+  }
+
+  function pickVoice(language, preferredURI) {
+    const candidates = availableVoices(language);
+    const preferred = String(preferredURI || 'auto');
+    if (preferred !== 'auto') {
+      const selected = candidates.find(voice => voiceId(voice) === preferred || voice.name === preferred);
+      if (selected) return selected;
+    }
+    return candidates[0] || null;
+  }
+
+  function applyVoice(utterance, item, options) {
+    const o = options || {};
+    const lang = o.lang || item.lang || 'en-US';
+    const preference = o.voiceURI
+      || (window.NuranVoice && window.NuranVoice.voiceURI)
+      || 'auto';
+    const voice = pickVoice(lang, preference);
+    if (!voice && languageBase(lang) === 'so') return false;
+    utterance.lang = voice ? voice.lang : lang;
+    if (voice) utterance.voice = voice;
+    return true;
   }
 
   const Speech = {
@@ -48,6 +98,28 @@
 
     synthAvailable() {
       return !!window.speechSynthesis;
+    },
+
+    availableVoices(language) {
+      return availableVoices(language || 'en-US');
+    },
+
+    bestVoice(language) {
+      return pickVoice(language || 'en-US', 'auto');
+    },
+
+    selectedVoice(language, preferredURI) {
+      return pickVoice(language || 'en-US', preferredURI || 'auto');
+    },
+
+    refreshVoices() {
+      loadVoices();
+    },
+
+    onVoicesChanged(listener) {
+      if (typeof listener !== 'function') return () => {};
+      voiceListeners.add(listener);
+      return () => voiceListeners.delete(listener);
     },
 
     /* Speak an item. Resolves true if any audio was produced, false if silent fallback. */
@@ -74,16 +146,7 @@
           const u = new SpeechSynthesisUtterance(item.speakAs || item.label);
           u.rate = Math.min(10, Math.max(0.1, o.rate || 0.55));
           u.pitch = (window.NuranVoice && window.NuranVoice.pitch) || 1;
-          const lang = o.lang || item.lang;
-          if (lang) {
-            u.lang = lang;
-            const lv = (speechSynthesis.getVoices() || []).find(v => v.lang && v.lang.startsWith(lang.split('-')[0]));
-            if (lv) u.voice = lv;
-            else if (lang.startsWith('so')) return false; // no Somali voice exists: stay silent rather than mispronounce
-          } else {
-            const v = pickVoice();
-            if (v) u.voice = v;
-          }
+          if (!applyVoice(u, item, o)) return false;
           speechSynthesis.speak(u);
           return true;
         } catch (e) { DB.logError('synthesis failed: ' + e.message); }
@@ -124,8 +187,7 @@
           const u = new SpeechSynthesisUtterance(item.speakAs || item.label);
           u.rate = Math.min(10, Math.max(0.1, o.rate || 0.55));
           u.pitch = (window.NuranVoice && window.NuranVoice.pitch) || 1;
-          const v = pickVoice();
-          if (v) u.voice = v;
+          if (!applyVoice(u, item, o)) return resolve(false);
           const done = () => resolve(true);
           u.onend = done;
           u.onerror = done;

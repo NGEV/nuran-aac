@@ -1,6 +1,8 @@
 /* Nuran AAC — starter data.
-   Core mode uses the Universal Core 36 words (Project Core / UNC Center for
-   Literacy and Disability Studies, word list licensed CC BY 4.0).
+   Core Words preserves the Universal Core 36 (Project Core / UNC Center for
+   Literacy and Disability Studies, word list licensed CC BY 4.0). The adjacent
+   Sentence Words group adds grammatical building blocks that the intentionally
+   minimal 36-word board does not contain.
    Learning categories start with concrete, highly imageable words,
    consistent with early AAC practice (spec 3.2). */
 
@@ -12,6 +14,7 @@
   // little words/places = sage, social/negation = rose, questions = lavender.
   const CATEGORIES = [
     { id: 'cat-core',     name: 'Core Words',     colorToken: 'neutral',  symbolKey: '_talk', sortOrder: 0, builtin: true },
+    { id: 'cat-sentence', name: 'Sentence Words', colorToken: 'place',    symbolKey: 'is',    sortOrder: 0.5, builtin: true },
     { id: 'cat-food',     name: 'Food & Drink',   colorToken: 'thing',    symbolKey: 'apple', sortOrder: 1, builtin: true },
     { id: 'cat-body',     name: 'Body & Needs',   colorToken: 'describe', symbolKey: '_body', sortOrder: 2, builtin: true },
     { id: 'cat-feelings', name: 'Feelings',       colorToken: 'social',   symbolKey: 'happy', sortOrder: 3, builtin: true },
@@ -39,6 +42,22 @@
     ['in', 'in', 'place'], ['on', 'on', 'place'], ['up', 'up', 'place'], ['here', 'here', 'place'],
     ['what', 'what', 'question'], ['when', 'when', 'question'], ['where', 'where', 'question'],
     ['who', 'who', 'question'], ['why', 'why', 'question'],
+  ];
+
+  // Nuran sentence-building extension. Keep this separate from Project Core's
+  // exact 36-word set so provenance stays honest and the original tile order
+  // remains stable. The first page deliberately exposes is/am/are/a at the
+  // default four-tile density. [label, symbolKey, colorToken]
+  const SENTENCE_WORDS = [
+    ['is', 'is', 'action'], ['am', 'am', 'action'], ['are', 'are', 'action'], ['a', 'a', 'place'],
+    ['the', 'the', 'place'], ['and', 'and', 'place'], ['but', 'but', 'place'], ['because', 'because', 'place'],
+    ['me', 'me', 'people'], ['we', 'we', 'people'], ['they', 'they', 'people'], ['my', 'my', 'people'],
+    ['your', 'your', 'people'], ['this', 'this', 'people'], ['have', 'have', 'action'], ['need', 'need', 'action'],
+    ['see', 'see', 'action'], ['feel', 'feel', 'action'], ['know', 'know', 'action'], ['say', 'say', 'action'],
+    ['to', 'to', 'place'], ['with', 'with', 'place'], ['for', 'for', 'place'], ['out', 'out', 'place'],
+    ['off', 'off', 'place'], ['down', 'down', 'place'], ['there', 'there', 'place'], ['how', 'how', 'question'],
+    ['again', 'again', 'place'], ['now', 'now', 'place'], ['later', 'later', 'place'], ['wait', 'wait', 'action'],
+    ['bad', 'bad', 'describe'], ['big', 'big', 'describe'], ['little', 'little', 'describe'], ['or', 'or', 'place'],
   ];
 
   // [categoryId, label, symbolKey]
@@ -69,8 +88,8 @@
   const DEFAULT_SETTINGS = Object.freeze(Object.assign({}, window.NuranSettings.defaults));
 
   window.Seed = {
-    /* Idempotent migration for installs seeded before yes/no existed.
-       Respects deliberate deletion: if the record exists at all (even deleted), leave it be. */
+    /* Idempotent migration for installs seeded before response and sentence words existed.
+       Respects deliberate deletion: if a record exists at all (even deleted), leave it be. */
     async ensureEssentials() {
       const now = Date.now();
       const essentials = [['yes', 'yes', -2], ['no', 'no', -1]];
@@ -109,6 +128,26 @@
           sortOrder: 7, builtin: true, deleted: false, createdAt: now, updatedAt: now,
         });
       }
+      // Migration: sentence-building words live in their own adjacent Talk group.
+      // This avoids moving the established Project Core tiles on upgraded devices.
+      const sentenceCat = await DB.get('categories', 'cat-sentence');
+      if (!sentenceCat) {
+        await DB.put('categories', {
+          id: 'cat-sentence', name: 'Sentence Words', colorToken: 'place', symbolKey: 'is',
+          sortOrder: 0.5, builtin: true, deleted: false, createdAt: now, updatedAt: now,
+        });
+      }
+      for (let index = 0; index < SENTENCE_WORDS.length; index += 1) {
+        const [label, symbolKey, colorToken] = SENTENCE_WORDS[index];
+        const existing = await DB.get('vocabulary', 'core-' + symbolKey);
+        if (existing) continue;
+        await DB.put('vocabulary', {
+          id: 'core-' + symbolKey, label, symbolKey, colorToken,
+          categoryId: 'cat-sentence', core: true, sortOrder: index,
+          imageBlob: null, audioBlob: null,
+          deleted: false, createdAt: now, updatedAt: now,
+        });
+      }
     },
 
     async seedIfEmpty() {
@@ -133,6 +172,15 @@
         if (label === 'I') rec.speakAs = 'i';
         await DB.put('vocabulary', rec);
       }
+      let sentenceOrder = 0;
+      for (const [label, symbolKey, colorToken] of SENTENCE_WORDS) {
+        await DB.put('vocabulary', {
+          id: 'core-' + symbolKey, label, symbolKey, colorToken,
+          categoryId: 'cat-sentence', core: true, sortOrder: sentenceOrder++,
+          imageBlob: null, audioBlob: null,
+          deleted: false, createdAt: now, updatedAt: now,
+        });
+      }
       for (const [categoryId, label, symbolKey] of LEARNING_WORDS) {
         await DB.put('vocabulary', {
           id: 'seed-' + symbolKey, label, symbolKey,
@@ -149,5 +197,7 @@
       return true;
     },
     DEFAULT_SETTINGS,
+    UNIVERSAL_CORE_WORDS: Object.freeze(CORE_WORDS.slice(3).map(([label]) => label)),
+    SENTENCE_WORDS: Object.freeze(SENTENCE_WORDS.map(([label]) => label)),
   };
 })();

@@ -15,12 +15,19 @@ discard stable AAC behavior and require the family to revalidate everything at o
 foundation extracts low-risk seams first while preserving the build-free runtime:
 
 - `core/settings.js` — defaults, validation, and normalization for all settings.
+- `core/symbol-registry.js` — one photo/Mulberry/original fallback policy for all visible symbols.
 - `core/activity-registry.js` — activity metadata plus mount/unmount lifecycle hooks.
 - `core/platform.js` — web/native sharing and service-worker capabilities.
 - `features/activity-catalog.js` — declarative Learn and Play catalog with motion eligibility.
+- `visual-system.css` — presentation-only design tokens and shared visual treatments layered over
+  the stable accessibility/layout primitives in `styles.css`. This keeps future art-direction work
+  separate from feature behavior and avoids another monolithic styling rewrite.
 - `db.js` — IndexedDB, bounded history, backup/restore, snapshots, and recovery.
 - `speech.js` — recordings, synthesis, and the local Help alarm.
-- `seed.js` — starter vocabulary/categories and idempotent essentials.
+- `seed.js` — starter vocabulary/categories and idempotent essentials. It keeps the licensed
+  Universal Core 36 unchanged, while a separate data-defined Sentence Words extension supplies
+  audited grammar/function words. `ensureEssentials()` adds that group to existing installs without
+  restoring a word the caregiver deliberately removed.
 - `app.js` — current screen router and feature implementations; it remains the next extraction target.
 
 The Activity Registry is intentionally a foundation. Existing hub lists use it now. Future slices
@@ -38,6 +45,8 @@ Important current defaults include:
 - `learnTalkBridge: true`
 - `motionLevel: "none"`
 - `density: 4`
+- `pictureStyle: "best"` — caregiver photo → Mulberry → original Nuran symbol
+- `voiceURI: "auto"` — highest-ranked installed offline English voice
 
 ## Data model
 
@@ -59,9 +68,19 @@ writes were unreliable in the tested path; older `imageBlob` records remain read
 ## Speech and Talk access
 
 Speech fallback is caregiver recording → bundled core recording when present → Web Speech synthesis
-→ visible silent feedback. The default synthesis rate is 0.55 and a caregiver can change rate and
-pitch. Speaking-style labels describe device voice adjustments; they are not distinct downloaded
-voices. A muted priming utterance handles iOS first-gesture behavior.
+→ visible silent feedback. The default synthesis rate is 0.55. Automatic mode ranks the device's
+actual English voices, strongly prefers local/offline voices, recognizes enhanced/natural quality
+labels when exposed, and avoids common novelty/compact voices. Caregivers can save an installed
+voice by its stable URI; if it later disappears, synthesis safely returns to Automatic. Language
+activities select a matching installed language voice instead of forcing the saved English choice.
+Speaking styles remain rate/pitch adjustments to the selected voice, not downloaded voice models.
+A muted priming utterance handles iOS first-gesture behavior.
+
+`core/symbol-registry.js` is the only visual-symbol policy. Best mode uses a family photo when
+present, then one of the 64 bundled Mulberry symbols, then the complete original symbol set, and
+finally a letter tile. Role aliases let appropriate Mulberry concepts appear on Home and navigation;
+semantic fallbacks remain original rather than substituting a misleading picture. Existing stored
+`photos` preference values normalize to Best without discarding photos.
 
 `talkAccessMode` supports `button`, `dock`, and `off`. Talk access is rendered only on child-facing
 routes. The custom dock always starts with Talk and contains at most three de-duplicated word IDs.
@@ -81,9 +100,19 @@ routes. The custom dock always starts with Talk and contains at most three de-du
 Automated axe checks are useful guardrails, not a substitute for VoiceOver, Switch Control, large
 text, Guided Access, first-tap speech, and real family observation on the target iPad.
 
+## Visual system
+
+`styles.css` remains the behavior-adjacent layout and accessibility foundation.
+`visual-system.css` is loaded afterward and owns the v17 art direction: canvas/surface/ink tokens,
+semantic category colors, radii, shadows, focus appearance, icon wells, navigation chrome, Talk
+composer and category rail, child tiles, caregiver cards, Settings sections, and responsive
+welcome composition. New features should reuse these variables and shared component classes before
+adding feature-specific presentation. Visual changes must preserve the accessibility invariants
+above and be reviewed at 1280×720 and 768×1024.
+
 ## Offline shell
 
-`sw.js` (`nuran-v13`) precaches 83 verified assets. Navigation failures may fall back to `index.html`; missing
+The held local `sw.js` (`nuran-v17`) precaches 85 verified assets. Navigation failures may fall back to `index.html`; missing
 scripts, images, or data do not receive HTML as a false success. Only successful network responses
 are cached. Bump `CACHE_VERSION` for every shipped runtime change.
 
@@ -97,7 +126,8 @@ npm run verify:all
 
 This verifies every service-worker asset, runs Node unit/data tests through `node:test` and
 `fake-indexeddb`, then runs a direct Playwright WebKit flow at 1280×720 and 768×1024. The browser flow
-checks the onboarding viewport, caregiver keyboard-confirm gate, Talk Anytime button/dock/off modes,
+checks the onboarding viewport, four-step voice/picture setup, visible default Mulberry Home assets,
+caregiver keyboard-confirm gate, Talk Anytime button/dock/off modes,
 dock duplicate refusal without persistence changes, Caregiver Today empty-state navigation, grouped
 Settings, one Visual Routine, the most-practiced Learn-to-Talk bridge selection, absence of page
 errors, and axe WCAG A/AA results on the main changed states.
@@ -119,10 +149,11 @@ After canonical runtime changes:
 npm run sync:ios
 ```
 
-The script copies and SHA-256 verifies shared runtime files into `../nuran-ios/www/`. iOS-owned app
-icons are preserved. The legacy `native.js` file may remain as an unused compatibility artifact; the
-current `index.html` does not load it. This command does not run Capacitor, build Xcode, push, deploy,
-or publish.
+The script copies and SHA-256 verifies shared runtime files into `../nuran-ios/www/`. Then run
+`npm run ios:sync` from `nuran-ios/` before opening Xcode so Capacitor refreshes
+`ios/App/App/public/` and native configuration. iOS-owned app icons are preserved. The legacy
+`native.js` file may remain as an unused compatibility artifact; the current `index.html` does not
+load it. Neither command builds Xcode, pushes, deploys, or publishes.
 
 ## Next modular slices
 

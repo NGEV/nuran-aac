@@ -39,11 +39,19 @@
     const stored = {};
     rows.forEach(r => { stored[r.key] = r.value; });
     settings = window.NuranSettings.normalize(Object.assign({}, Seed.DEFAULT_SETTINGS, stored));
-    window.NuranVoice = { pitch: Number(settings.voicePitch) || 1 };
+    syncVoiceSettings();
   }
   async function setSetting(key, value) {
     settings[key] = value;
     await DB.setSetting(key, value);
+    if (key === 'voicePitch' || key === 'voiceURI') syncVoiceSettings();
+  }
+
+  function syncVoiceSettings() {
+    window.NuranVoice = {
+      pitch: Number(settings.voicePitch) || 1,
+      voiceURI: settings.voiceURI || 'auto',
+    };
   }
 
   /* ---------- Tiny UI helpers ---------- */
@@ -175,22 +183,17 @@
   }
 
   function symbolHTML(item) {
-    // Caregiver preference: real photos when available (default), symbol-first,
-    // or Mulberry (professional AAC symbol set) for concrete words.
-    if (settings.pictureStyle === 'mulberry' && window.MulberryMap) {
-      const key = (item.label || item.name || '').toLowerCase();
-      if (window.MulberryMap[key]) return `<img src="${window.MulberryMap[key]}" alt="">`;
-    }
-    const symbolFirst = settings.pictureStyle === 'symbols';
-    if (symbolFirst && item.symbolKey && Symbols.has(item.symbolKey)) return Symbols.get(item.symbolKey);
+    let photoHTML = '';
     if (item.imageBlob instanceof Blob) {
-      return `<img src="${trackURL(URL.createObjectURL(item.imageBlob))}" alt="">`;
+      photoHTML = `<img class="symbol-img symbol-photo" src="${trackURL(URL.createObjectURL(item.imageBlob))}" alt="">`;
+    } else if (item.photoBlob instanceof Blob) {
+      photoHTML = `<img class="symbol-img symbol-photo" src="${trackURL(URL.createObjectURL(item.photoBlob))}" alt="">`;
     }
-    if (item.photoBlob instanceof Blob) {
-      return `<img src="${trackURL(URL.createObjectURL(item.photoBlob))}" alt="">`;
-    }
-    if (item.symbolKey && Symbols.has(item.symbolKey)) return Symbols.get(item.symbolKey);
-    return Symbols.letterTile(item.label || item.name);
+    return window.NuranSymbols.html(item, { style: settings.pictureStyle, photoHTML });
+  }
+
+  function visualSymbol(label, symbolKey, style) {
+    return window.NuranSymbols.html({ label, symbolKey }, { style: style || settings.pictureStyle });
   }
 
   async function speakAndFeedback(btn, item) {
@@ -242,12 +245,7 @@
   function childRoute(name) { return CHILD_ROUTES.has(name); }
 
   function dockSymbolHTML(word) {
-    const key = (word.label || '').toLowerCase();
-    if (settings.pictureStyle === 'mulberry' && window.MulberryMap && window.MulberryMap[key]) {
-      return `<img src="${window.MulberryMap[key]}" alt="">`;
-    }
-    if (word.symbolKey && Symbols.has(word.symbolKey)) return Symbols.get(word.symbolKey);
-    return Symbols.letterTile(word.label || '?');
+    return symbolHTML(word);
   }
 
   async function renderTalkDock(token) {
@@ -284,11 +282,11 @@
       <div id="help-banner"></div>
       <div class="screen">
         <div class="home-grid home-v2">
-          <button class="home-btn talk hero" id="h-talk">${Symbols.get('_talk')}<span>Talk</span></button>
-          <button class="home-btn people" id="h-people">${Symbols.get('_people')}<span>People</span></button>
-          <button class="home-btn learn" id="h-learn">${Symbols.get('_learn')}<span>Learn</span></button>
-          <button class="home-btn playfun ${help ? '' : 'wide'}" id="h-play">${Symbols.get('_paint')}<span>Play</span></button>
-          ${help ? `<button class="home-btn helpme" id="h-help">${Symbols.get('_help')}<span>Help</span></button>` : ''}
+          <button class="home-btn talk hero" id="h-talk">${visualSymbol('Talk', '_talk')}<span>Talk</span></button>
+          <button class="home-btn people" id="h-people">${visualSymbol('People', '_people')}<span>People</span></button>
+          <button class="home-btn learn" id="h-learn">${visualSymbol('Learn', '_learn')}<span>Learn</span></button>
+          <button class="home-btn playfun ${help ? '' : 'wide'}" id="h-play">${visualSymbol('Play', '_paint')}<span>Play</span></button>
+          ${help ? `<button class="home-btn helpme" id="h-help">${visualSymbol('Help', '_help')}<span>Help</span></button>` : ''}
         </div>
         <div class="home-footer">
           <button class="gate-btn" id="h-gate">Caregiver: press and hold</button>
@@ -351,8 +349,7 @@
   };
   function catSymbolHTML(c) {
     const key = c.symbolKey || CAT_SYMBOLS[c.id];
-    if (key && Symbols.has(key)) return Symbols.get(key);
-    return Symbols.letterTile(c.name);
+    return visualSymbol(c.name, key);
   }
 
   /* Sentence bar: tapped words collect here so a child can combine them
@@ -362,9 +359,7 @@
   const SENTENCE_MAX = 8;
 
   function sentenceChipHTML(it) {
-    let mini = '';
-    if (it.imageBlob instanceof Blob) mini = `<img src="${trackURL(URL.createObjectURL(it.imageBlob))}" alt="">`;
-    else if (it.symbolKey && Symbols.has(it.symbolKey)) mini = Symbols.get(it.symbolKey);
+    const mini = symbolHTML(it);
     return `<span class="schip">${mini}${esc(it.label)}</span>`;
   }
 
@@ -448,13 +443,13 @@
           <span class="gsym">${catSymbolHTML(c)}</span><span class="glbl">${esc(c.name)}</span>
         </button>`).join('')}
       <button class="group-chip tok-people" data-goto="__people">
-        <span class="gsym">${Symbols.get('_people')}</span><span class="glbl">People</span>
+        <span class="gsym">${visualSymbol('People', '_people')}</span><span class="glbl">People</span>
       </button>
       ${visualScene ? `<button class="group-chip tok-place" data-goto="__scene" aria-label="${esc(visualScene.title)}">
-        <span class="gsym">${Symbols.get('home')}</span><span class="glbl">${esc(visualScene.title.length > 14 ? visualScene.title.slice(0, 13) + '…' : visualScene.title)}</span>
+        <span class="gsym">${visualSymbol('Home', 'home')}</span><span class="glbl">${esc(visualScene.title.length > 14 ? visualScene.title.slice(0, 13) + '…' : visualScene.title)}</span>
       </button>` : ''}
       ${settings.keyboard ? `<button class="group-chip tok-neutral" data-goto="__keyboard">
-        <span class="gsym">${Symbols.letterTile('A')}</span><span class="glbl">Keyboard</span>
+        <span class="gsym">${window.NuranSymbols.html({ label: 'A' }, { style: 'symbols' })}</span><span class="glbl">Keyboard</span>
       </button>` : ''}
     </div>`;
 
@@ -555,11 +550,11 @@
     const ov = document.createElement('div');
     ov.className = 'cele-overlay cele-' + level;
     const floaters = level === 'festive'
-      ? `<span class="cele-float f1">${Symbols.get('_star')}</span>
-         <span class="cele-float f2">${Symbols.get('_star')}</span>
-         <span class="cele-float f3">${Symbols.get('_star')}</span>` : '';
+      ? `<span class="cele-float f1">${visualSymbol('Star', '_star')}</span>
+         <span class="cele-float f2">${visualSymbol('Star', '_star')}</span>
+         <span class="cele-float f3">${visualSymbol('Star', '_star')}</span>` : '';
     ov.innerHTML = `${floaters}<div class="cele-card">
-      <span class="cs">${Symbols.get(celeKey())}</span>
+      <span class="cs">${visualSymbol(settings.celebration, celeKey())}</span>
       <span class="cele-word">${esc(word.label)}</span>
     </div>`;
     document.body.appendChild(ov);
@@ -587,10 +582,10 @@
       <div class="screen">
         <div class="tile-grid d6">
           ${activities.map(a => `<button class="tile tok-${esc(a.token)}" data-activity="${esc(a.id)}">
-            <span class="sym">${Symbols.get(a.symbolKey)}</span><span class="lbl">${esc(a.label)}</span></button>`).join('')}
+            <span class="sym">${visualSymbol(a.label, a.symbolKey)}</span><span class="lbl">${esc(a.label)}</span></button>`).join('')}
           ${settings.contentLang && settings.contentLang !== 'en' ? `
           <button class="tile tok-people" data-langgame="${esc(settings.contentLang)}">
-            <span class="sym">${Symbols.get('_talk')}</span><span class="lbl">${settings.contentLang === 'ar' ? 'Arabic' : 'Somali'} words</span></button>` : ''}
+            <span class="sym">${visualSymbol('Talk', '_talk')}</span><span class="lbl">${settings.contentLang === 'ar' ? 'Arabic' : 'Somali'} words</span></button>` : ''}
         </div>
         <div class="hint" style="text-align:center">Games start easy and grow with your child. Wrong taps never scold — after two tries, the answer gently shows itself.</div>
       </div>`);
@@ -692,7 +687,7 @@
       pool = GAME_COLORS.map(([name, hex]) => ({ id: 'c-' + name, label: name, hex }));
     } else {
       let words = (await DB.allActive('vocabulary'))
-        .filter(w => !w.phrase && ((w.symbolKey && Symbols.has(w.symbolKey)) || w.imageBlob instanceof Blob));
+        .filter(w => !w.phrase && (window.NuranSymbols.has(w) || w.imageBlob instanceof Blob));
       if (lang) {
         words = words.filter(w => w.translations && w.translations[lang] &&
           (w.translations[lang].label || w.translations[lang].audioBlob instanceof Blob));
@@ -779,7 +774,7 @@
             if (backToPlay) { breakActive = false; playSec = 0; nudgeWarned = false; }
             screen(`${topbar('Learn', 'learn')}
               <div class="screen" style="justify-content:center;align-items:center;gap:20px">
-                <span class="cs-done">${Symbols.get(celeKey())}</span>
+                <span class="cs-done">${visualSymbol(settings.celebration, celeKey())}</span>
                 <div class="cele-word">${backToPlay ? 'Games are back!' : 'All done!'}</div>
                 <div class="row" style="display:flex;gap:14px">
                   ${backToPlay ? '<button class="btn-primary btn-big" data-nav="play">Back to games</button>' : `
@@ -846,7 +841,7 @@
       .filter(a => !hidden.includes(a.id));
     const iconFor = (activity) => activity.icon === 'balloon-pink' ? balloonSVG('#C98BA6')
       : activity.icon === 'balloon-blue' ? balloonSVG('#7D9CB0')
-      : Symbols.get(activity.symbolKey);
+      : visualSymbol(activity.label, activity.symbolKey);
     screen(`${topbar('Play', null)}
       <div class="screen">
         ${activities.length ? `<div class="tile-grid d6">
@@ -877,7 +872,7 @@
       <div class="screen">
         <div class="tile-grid d12 pop-grid">
           ${popState.map((b, i) => `<button class="tile pop-tile" data-b="${i}" aria-label="balloon">
-            ${b.popped ? `<span class="sym pop-burst">${Symbols.get('_star')}</span>` : `<span class="sym">${balloonSVG(b.color)}</span>`}
+            ${b.popped ? `<span class="sym pop-burst">${visualSymbol('Star', '_star')}</span>` : `<span class="sym">${balloonSVG(b.color)}</span>`}
           </button>`).join('')}
         </div>
       </div>`);
@@ -901,7 +896,7 @@
   let mem = null;
   screens.memory = async function () {
     if (!mem) {
-      const words = (await DB.allActive('vocabulary')).filter(w => w.symbolKey && Symbols.has(w.symbolKey) && !w.phrase);
+      const words = (await DB.allActive('vocabulary')).filter(w => window.NuranSymbols.has(w) && !w.phrase);
       const pool = [...words], picks = [];
       while (picks.length < 3 && pool.length) picks.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
       const cards = [];
@@ -917,7 +912,7 @@
       <div class="screen">
         <div class="tile-grid d6">
           ${mem.cards.map((c, i) => `<button class="tile mem-card ${shown(i) ? '' : 'mem-back'}" data-c="${i}" aria-label="card">
-            ${shown(i) ? `<span class="sym">${Symbols.get(c.w.symbolKey)}</span>` : '<span class="mem-q">?</span>'}
+            ${shown(i) ? `<span class="sym">${symbolHTML(c.w)}</span>` : '<span class="mem-q">?</span>'}
           </button>`).join('')}
         </div>
       </div>`);
@@ -1066,8 +1061,8 @@
     screen(`${topbar('Learning time', null)}
       <div class="screen" style="justify-content:center;align-items:center;gap:18px">
         <div class="ft-row">
-          <div class="ft-card"><span class="ft-tag">First</span>${Symbols.get('_learn')}<span class="lbl">One quick game</span></div>
-          <div class="ft-card then"><span class="ft-tag">Then</span>${Symbols.get('_paint')}<span class="lbl">Games come back</span></div>
+          <div class="ft-card"><span class="ft-tag">First</span>${visualSymbol('Learn', '_learn')}<span class="lbl">One quick game</span></div>
+          <div class="ft-card then"><span class="ft-tag">Then</span>${visualSymbol('Play', '_paint')}<span class="lbl">Games come back</span></div>
         </div>
         <div class="cele-word" id="lb-timer">5:00</div>
         <div class="hint">Games come back when the timer ends — or right after one quick learning game.</div>
@@ -1165,7 +1160,7 @@
       <div class="screen">
         <div class="group-strip">
           <button class="group-chip tok-action" data-nav="talk">
-            <span class="gsym">${Symbols.get('_talk')}</span><span class="glbl">Back to words</span></button>
+            <span class="gsym">${visualSymbol('Talk', '_talk')}</span><span class="glbl">Back to words</span></button>
         </div>
         <div class="speak-bar">
           <button class="speak-line kb-display" id="kb-line" aria-label="Say what is typed"></button>
@@ -1219,14 +1214,14 @@
       <div class="screen">
         ${speakBarHTML()}
         <div class="group-strip"><button class="group-chip tok-action" data-nav="talk">
-          <span class="gsym">${Symbols.get('_talk')}</span><span class="glbl">Back to words</span></button></div>
+          <span class="gsym">${visualSymbol('Talk', '_talk')}</span><span class="glbl">Back to words</span></button></div>
         <div class="tile-grid d4">
           ${people.map(p => `
             <button class="tile person tok-people" data-person="${esc(p.id)}">
               <span class="sym">${symbolHTML(p)}</span>
               <span class="lbl">${esc(p.name)}</span>
             </button>`).join('') ||
-            `<div class="notice" style="text-align:center">${Symbols.get('_people')}<br>
+            `<div class="notice" style="text-align:center">${visualSymbol('People', '_people')}<br>
              The family belongs here. A caregiver can add photos and voices in a minute — hold the Caregiver button on the home screen, then tap People.</div>`}
         </div>
       </div>`);
@@ -1253,35 +1248,81 @@
     ['calm', 'Calm & steady', 0.5, 0.85, 'Lower and even — often preferred by older kids and young adults'],
   ];
 
+  const voiceId = (voice) => voice ? (voice.voiceURI || voice.name || '') : '';
+
+  function deviceVoiceOptions(selectedURI) {
+    const selected = selectedURI || 'auto';
+    const voices = Speech.availableVoices('en-US');
+    const best = Speech.bestVoice('en-US');
+    const automaticLabel = best
+      ? `Automatic — ${best.name} (best available)`
+      : 'Automatic — best available on this device';
+    const known = voices.some(voice => voiceId(voice) === selected);
+    return `<option value="auto">${esc(automaticLabel)}</option>
+      ${selected !== 'auto' && !known ? `<option value="${esc(selected)}" selected>Saved voice unavailable — using automatic</option>` : ''}
+      ${voices.map(voice => `<option value="${esc(voiceId(voice))}" ${voiceId(voice) === selected ? 'selected' : ''}>${esc(voice.name)} — ${esc(voice.lang || 'English')}${voice.localService ? ' · offline' : ''}</option>`).join('')}`;
+  }
+
+  function bindDeviceVoiceSelect(select, preview) {
+    if (!select) return;
+    const refresh = () => {
+      const focused = document.activeElement === select;
+      select.innerHTML = deviceVoiceOptions(settings.voiceURI);
+      select.value = settings.voiceURI || 'auto';
+      if (!select.value) select.value = 'auto';
+      if (focused) select.focus();
+    };
+    refresh();
+    const stopListening = Speech.onVoicesChanged(refresh);
+    onScreenCleanup(stopListening);
+    Speech.refreshVoices();
+    select.onchange = async () => {
+      await setSetting('voiceURI', select.value || 'auto');
+      if (preview) {
+        Speech.prime();
+        Speech.speakItem({ label: 'Hello! I want more water, please.' }, {
+          rate: settings.speechRate, soundOn: true, voiceURI: settings.voiceURI,
+        });
+      }
+    };
+  }
+
   screens.welcome = function () {
-    screen(`<div class="screen" style="justify-content:center;max-width:680px;margin:0 auto;gap:18px">
-      <div class="welcome-logo">${Symbols.get('_talk')}</div>
-      <h2 style="text-align:center;font-size:1.6rem">Welcome to Nuran</h2>
-      <p style="text-align:center">A minute of setup makes the app fit your child. You can change everything later in Settings.</p>
-      <button class="btn-primary btn-big" id="wz-quick">${settings.firstRunDone ? 'Reset to recommended defaults — replaces current voice, motion, and celebration choices' : 'Quick setup — sensible defaults, done in one tap'}</button>
-      <button class="btn-big" id="wz-custom">Choose settings — motion, celebrations, and voice, with demos</button>
+    screen(`<div class="screen welcome-screen">
+      <div class="welcome-brand">
+        <div class="welcome-logo">${visualSymbol('Talk', '_talk')}</div>
+        <div class="welcome-kicker">Private · offline · family-led</div>
+        <h2>Welcome to Nuran</h2>
+        <p class="welcome-copy">A welcoming place to communicate, learn, and play—shaped around your child.</p>
+      </div>
+      <div class="welcome-setup">
+        <p>One minute of setup chooses the best available pictures and voice. Caregivers can change every choice later.</p>
+        <button class="btn-primary btn-big" id="wz-quick">${settings.firstRunDone ? 'Reset to best defaults — replaces current voice, pictures, motion, and celebration choices' : 'Quick setup — best available voice and pictures, done in one tap'}</button>
+        <button class="btn-big" id="wz-custom">Choose settings — voice, pictures, motion, and celebrations</button>
+        <p class="welcome-privacy">No account, ads, analytics, or cloud upload.</p>
+      </div>
     </div>`);
     $('#wz-quick').onclick = async () => {
-      await setSetting('speechRate', 0.45);
-      await setSetting('voicePitch', 1.25);
+      await setSetting('speechRate', 0.55);
+      await setSetting('voicePitch', 1.0);
+      await setSetting('voiceURI', 'auto');
       await setSetting('motionLevel', 'none');
       await setSetting('celebrationLevel', 'cheerful');
-      await setSetting('pictureStyle', 'photos');
-      window.NuranVoice = { pitch: 1.25 };
+      await setSetting('pictureStyle', 'best');
       await setSetting('firstRunDone', true);
       go('home');
     };
-    $('#wz-custom').onclick = () => go('wizvoice'); // voice first: the default robot voice is the most off-putting thing to leave unfixed
+    $('#wz-custom').onclick = () => go('wizvoice');
   };
 
   screens.wizmotion = function () {
-    screen(`${topbar('Setup 2 of 3 — Movement', null)}
+    screen(`${topbar('Setup 3 of 4 — Movement', null)}
       <div class="screen" style="max-width:680px;margin:0 auto">
         <p>How much should things move on screen? Many autistic children find motion overwhelming; some enjoy it. Watch each demo:</p>
         <div class="wz-opts">
           ${[['none', 'Still', 'Moving games stay hidden'], ['gentle', 'Gentle', 'Soft, slow drifting'], ['full', 'Playful', 'Lively bounces']].map(([v, n, d]) => `
             <button class="wz-card ${settings.motionLevel === v ? 'current' : ''}" data-mo="${v}">
-              <span class="wz-demo demo-${v}">${Symbols.get('_star')}</span>
+              <span class="wz-demo demo-${v}">${visualSymbol('Star', '_star')}</span>
               <b>${n}</b><span class="hint">${d}</span>
             </button>`).join('')}
         </div>
@@ -1298,7 +1339,7 @@
   };
 
   screens.wizcele = function () {
-    screen(`${topbar('Setup 3 of 3 — Celebrations', null)}
+    screen(`${topbar('Setup 4 of 4 — Celebrations', null)}
       <div class="screen" style="max-width:680px;margin:0 auto">
         <p>When a game answer is right, how big should the cheer be?</p>
         <div class="wz-opts">
@@ -1308,7 +1349,7 @@
         <div class="row" style="display:flex;gap:12px;align-items:center">
           <span>Picture:</span>
           ${['star', 'rainbow', 'balloons', 'check'].map(v => `
-            <button class="wz-mini ${settings.celebration === v ? 'current' : ''}" data-cg="${v}">${Symbols.get('cele_' + v)}</button>`).join('')}
+            <button class="wz-mini ${settings.celebration === v ? 'current' : ''}" data-cg="${v}">${visualSymbol(v, 'cele_' + v)}</button>`).join('')}
         </div>
         <button class="btn-big" id="wz-prev">Try it</button>
         <button class="btn-primary btn-big" id="wz-done">Finish</button>
@@ -1332,28 +1373,64 @@
   };
 
   screens.wizvoice = function () {
-    screen(`${topbar('Setup 1 of 3 — Voice', null)}
+    screen(`${topbar('Setup 1 of 4 — Voice', null)}
       <div class="screen" style="max-width:680px;margin:0 auto">
-        <p>Pick a speaking style for the device voice. Tap each to hear it:</p>
+        <p>Choose an actual voice installed on this device. Automatic selects the strongest offline English voice Nuran can identify.</p>
+        <label><b>Device voice</b>
+          <select id="wz-device-voice"></select>
+        </label>
+        <p>Then pick its speaking style. Tap each style to hear it:</p>
         <div class="wz-opts wz-col">
           ${VOICE_PRESETS.map(([v, n, r, p, d]) => `
-            <button class="wz-card wide" data-vp="${v}" data-r="${r}" data-p="${p}">
+            <button class="wz-card wide ${Math.abs(settings.speechRate - r) < 0.01 && Math.abs(settings.voicePitch - p) < 0.01 ? 'current' : ''}" data-vp="${v}" data-r="${r}" data-p="${p}">
               <b>${n}</b><span class="hint">${d}</span>
             </button>`).join('')}
         </div>
-        <div class="hint">Available device voices depend on the iPad. A caregiver's own recording always takes priority.</div>
-        <button class="btn-primary btn-big" data-nav="wizmotion">Next</button>
+        <div class="hint">Voice names depend on the device. Family recordings always take priority.</div>
+        <button class="btn-primary btn-big" data-nav="wizpictures">Next</button>
       </div>`);
     bindNav();
+    bindDeviceVoiceSelect($('#wz-device-voice'), true);
     app().querySelectorAll('[data-vp]').forEach(b => {
       b.onclick = async () => {
         await setSetting('speechRate', Number(b.dataset.r));
         await setSetting('voicePitch', Number(b.dataset.p));
-        window.NuranVoice = { pitch: Number(b.dataset.p) };
         app().querySelectorAll('.wz-card').forEach(c => c.classList.remove('current'));
         b.classList.add('current');
         Speech.prime();
-        Speech.speakItem({ label: 'Hello! I want more water, please.' }, { rate: Number(b.dataset.r), soundOn: true });
+        Speech.speakItem({ label: 'Hello! I want more water, please.' }, {
+          rate: Number(b.dataset.r), soundOn: true, voiceURI: settings.voiceURI,
+        });
+      };
+    });
+  };
+
+  screens.wizpictures = function () {
+    const choices = [
+      ['best', 'Best available', 'Family photos when added, then Mulberry, then the complete Nuran set'],
+      ['mulberry', 'Mulberry first', 'Use the professional AAC set wherever it has the concept'],
+      ['symbols', 'Original Nuran symbols', 'Use the complete calm line-art set throughout'],
+    ];
+    screen(`${topbar('Setup 2 of 4 — Pictures', null)}
+      <div class="screen" style="max-width:760px;margin:0 auto">
+        <p>Pictures are always paired with words. Best available is recommended and never leaves a blank tile.</p>
+        <div class="wz-opts">
+          ${choices.map(([value, name, description]) => `
+            <button class="wz-card ${settings.pictureStyle === value ? 'current' : ''}" data-picture-style="${value}">
+              <span class="picture-preview">
+                ${visualSymbol('water', 'water', value)}${visualSymbol('help', 'help', value)}${visualSymbol('play', 'play', value)}
+              </span>
+              <b>${name}</b><span class="hint">${description}</span>
+            </button>`).join('')}
+        </div>
+        <button class="btn-primary btn-big" data-nav="wizmotion">Next</button>
+      </div>`);
+    bindNav();
+    app().querySelectorAll('[data-picture-style]').forEach(button => {
+      button.onclick = async () => {
+        await setSetting('pictureStyle', button.dataset.pictureStyle);
+        app().querySelectorAll('[data-picture-style]').forEach(card => card.classList.remove('current'));
+        button.classList.add('current');
       };
     });
   };
@@ -1421,27 +1498,27 @@
 
     screen(`${topbar('Today', 'caregiver')}
       <div class="screen today-grid">
-        <section class="today-card ${backupDue ? 'needs-action' : ''}">
+        <section class="today-card today-backup ${backupDue ? 'needs-action' : ''}">
           <h2>${L(backupDue ? 'triangle-alert' : 'shield-check')} Backup</h2>
           <p>${lastBackup ? `Last saved ${lastBackup.toLocaleDateString()} at ${lastBackup.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : 'No off-device backup has been made yet.'}</p>
           <button class="${backupDue ? 'btn-primary' : ''}" data-nav="backup">${backupDue ? 'Back up now' : 'View backup'}</button>
         </section>
-        <section class="today-card">
+        <section class="today-card today-recent">
           <h2>${L('message-circle')} Words heard recently</h2>
           <p>${recent.length ? recent.map(esc).join(' · ') : 'Use Talk normally and recent words will appear here.'}</p>
           <button data-nav="progress">Open Progress</button>
         </section>
-        <section class="today-card">
+        <section class="today-card today-voices">
           <h2>${L('mic')} Personal voices</h2>
           <p>${customWords.length ? `${customWords.length - missingVoice} of ${customWords.length} custom words have a family recording.` : 'Add the first personal word and family recording.'}</p>
           <button data-nav="${customWords.length && missingVoice ? 'managewords' : 'addword'}">${customWords.length && missingVoice ? 'Open words &amp; groups' : 'Add a word'}</button>
         </section>
-        <section class="today-card">
+        <section class="today-card today-routine">
           <h2>${L('image')} Visual Routine trial</h2>
           <p>${scenes.length ? `“${esc(scenes[0].title)}” is ready in Talk.` : 'Create one photo scene with up to four familiar words.'}</p>
           <button class="${scenes.length ? '' : 'btn-primary'}" data-nav="${scenes.length ? 'visualscene' : 'visualsceneedit'}">${scenes.length ? 'Open scene' : 'Create the scene'}</button>
         </section>
-        <section class="today-card today-wide">
+        <section class="today-card today-learning today-wide">
           <h2>${L('sprout')} Learning</h2>
           <p>${progress.length ? `${progress.length} learning moments are safely stored in the current progress window.` : 'No learning moments recorded yet. Start with one short, familiar game.'}</p>
           <div class="today-actions"><button data-nav="learn">Open Learn</button><button data-nav="settingsview">Review settings</button></div>
@@ -1899,7 +1976,7 @@
     const playActivities = window.NuranActivities.list({ family: 'play', context: { motionLevel: 'full' } });
     screen(`${topbar('Settings', 'caregiver')}
       <div class="screen"><div class="settings-layout">
-      <section class="settings-section">
+      <section class="settings-section settings-talk">
         <h2>${L('message-circle')} Talk &amp; access</h2>
         <div class="hint">Talk opens with core words. Groups and quick controls keep stable positions.</div>
         <label>Talk Anytime
@@ -1944,8 +2021,12 @@
         </label>
       </section>
 
-      <section class="settings-section">
+      <section class="settings-section settings-voice">
         <h2>${L('volume-2')} Voice &amp; sound</h2>
+        <label>Device voice
+          <select id="s-device-voice"></select>
+        </label>
+        <div class="hint">Automatic chooses the strongest offline English voice Nuran can identify. To add choices on iPad, install voices in Settings → Accessibility → Spoken Content → Voices.</div>
         <label>Speaking style
           <select id="s-voice-style">
             <option value="warm" ${voiceStyle === 'warm' ? 'selected' : ''}>Warm &amp; slow</option>
@@ -1954,7 +2035,7 @@
             <option value="custom" ${voiceStyle === 'custom' ? 'selected' : ''}>Custom speed and current pitch</option>
           </select>
         </label>
-        <div class="hint">These styles adjust the device voice's speed and pitch. A family recording still takes priority.</div>
+        <div class="hint">Speaking styles adjust the selected voice's speed and pitch; they are not replacement voices. A family recording still takes priority.</div>
         <label>Speaking speed
           <select id="s-rate">
             ${rateOptions}
@@ -1969,13 +2050,13 @@
         </label>
       </section>
 
-      <section class="settings-section">
+      <section class="settings-section settings-pictures">
         <h2>${L('image')} Pictures &amp; language</h2>
         <label>Pictures on buttons
           <select id="s-pic">
-            <option value="photos" ${settings.pictureStyle === 'photos' ? 'selected' : ''}>Real photos when added (default)</option>
-            <option value="symbols" ${settings.pictureStyle === 'symbols' ? 'selected' : ''}>Symbols first — for symbol-based teaching</option>
-            <option value="mulberry" ${settings.pictureStyle === 'mulberry' ? 'selected' : ''}>Mulberry symbols — professional AAC picture set</option>
+            <option value="best" ${settings.pictureStyle === 'best' ? 'selected' : ''}>Best available — family photos, then Mulberry (default)</option>
+            <option value="mulberry" ${settings.pictureStyle === 'mulberry' ? 'selected' : ''}>Mulberry first — professional AAC picture set</option>
+            <option value="symbols" ${settings.pictureStyle === 'symbols' ? 'selected' : ''}>Original Nuran symbols — complete calm line-art set</option>
           </select>
         </label>
         <label>Learning language
@@ -1988,7 +2069,7 @@
         <div class="hint">Controls stay in English. Add translations and recordings from Translate &amp; record.</div>
       </section>
 
-      <section class="settings-section">
+      <section class="settings-section settings-learn">
         <h2>${L('gamepad-2')} Learn &amp; Play</h2>
         <label>After a Learn session
           <select id="s-bridge">
@@ -2013,7 +2094,7 @@
         <div class="hint">Moving games remain hidden when Motion is set to None, even when they are checked here.</div>
       </section>
 
-      <section class="settings-section">
+      <section class="settings-section settings-motion">
         <h2>${L('sparkles')} Motion &amp; celebrations</h2>
         <label>Motion
           <select id="s-motion">
@@ -2037,7 +2118,7 @@
         </label>
       </section>
 
-      <section class="settings-section">
+      <section class="settings-section settings-data">
         <h2>${L('database')} Data reminders</h2>
         <label>Backup reminder
           <select id="s-remind">
@@ -2048,6 +2129,7 @@
       <div class="hint">Changes save immediately. Nothing is uploaded.</div>
       </div></div>`);
     bindNav();
+    bindDeviceVoiceSelect($('#s-device-voice'), false);
     const dockEditor = $('#s-dock-editor');
     $('#s-talk-access').onchange = async e => {
       await setSetting('talkAccessMode', e.target.value);
@@ -2101,12 +2183,13 @@
       if (!preset) return;
       await setSetting('speechRate', preset[0]);
       await setSetting('voicePitch', preset[1]);
-      window.NuranVoice = { pitch: preset[1] };
       $('#s-rate').value = String(preset[0]);
     };
     $('#s-test').onclick = () => {
       Speech.prime();
-      Speech.speakItem({ label: 'I want more water, please' }, { rate: Number($('#s-rate').value), soundOn: true });
+      Speech.speakItem({ label: 'I want more water, please' }, {
+        rate: Number($('#s-rate').value), soundOn: true, voiceURI: settings.voiceURI,
+      });
     };
   };
 
@@ -2402,7 +2485,7 @@
       } else if (check.empty) {
         await Seed.seedIfEmpty();
       }
-      await Seed.ensureEssentials();    // adds yes/no to installs seeded before they existed
+      await Seed.ensureEssentials();    // non-destructive response/sentence-word migrations
       DB.requestPersistence();          // spec 2.3.3
       DB.startSnapshotTimer();          // spec 2.3.2
       setInterval(nudgeTick, 15000);    // play-time learning break (v2.2)
