@@ -1,52 +1,76 @@
 # Nuran — Talk & Learn
 
-A free communication and early literacy app for a minimally verbal child, made to run on an iPad with no internet, no account, no ads, and no tracking. Nothing the child does ever leaves the device unless you choose to export a backup.
+Nuran is a free, private communication and early-literacy app for minimally verbal children. Once
+installed, it runs offline, has no account, ads, analytics, or tracking, and keeps child data on the
+device unless a caregiver deliberately exports a backup.
 
-**[📖 Read the user manual (PDF)](nuran-user-manual.pdf)** — an illustrated guide covering every screen and feature, written for non-technical caregivers.
-
-This README is for parents and caregivers. If you are a developer, see `TECHNICAL.md`.
-
-## What it does
-
-The child taps large, calm picture buttons and the iPad speaks the word slowly and clearly. You can add her own words with your own photos, add family members with real photos and your recorded voice, and gently see which words she uses most. Everything she learns is protected: deleting is never permanent, the app quietly saves snapshots every hour, and one tap makes a backup file you can keep in iCloud.
-
-## Setting it up (once, about five minutes)
-
-1. Put the app folder on the web (whoever shared this with you may have already done that and given you a link), or ask a helper to do the one-time hosting step in `TECHNICAL.md`.
-2. On the iPad, open the link in Safari.
-3. Tap the share button (the square with an arrow), then **Add to Home Screen**.
-4. Open the app from its new Home Screen icon. From now on it works with no internet at all.
-
-That is the whole setup. To confirm everything is healthy, open the caregiver area and tap **Device check** — it walks you through six simple checks in plain language.
+This workspace contains a held local update for owner review. It has not been pushed, deployed, or
+submitted to an app store.
 
 ## Daily use
 
-The home screen has four big buttons. **Talk** opens the word buttons. **People** shows family photos that speak their names. **Help** makes a loud alert so she can call you from another room. The **Hello** button is a safe place for her to explore tapping.
+The child-facing Home screen offers **Talk**, **People**, **Learn**, and **Play**. Caregivers may also
+enable an on-device Help alarm. Large buttons, stable positions, pictures with labels, calm colors,
+and forgiving learning activities reduce memory and motor-planning demands.
 
-The caregiver area is behind the small "Caregiver: press and hold" button at the bottom, so she cannot change settings by accident. Hold it for a moment and it opens. From there you can add words, add people, change modes, back up, and recover anything that was removed.
+Talk includes core vocabulary, category groups, a sentence bar, personal words, family voices, and
+an optional type-to-speak keyboard. Words and sentences speak on the device. Recorded family audio
+takes priority over the device voice.
 
-## How Talk is organized
+## Talk Anytime
 
-Talk opens with the research-chosen core words that carry most everyday communication, starting with yes and no. Along the top sits a strip of symbol buttons, one for each word group — Food, Feelings, Actions, Places, Play, People, and any groups you add. She can move between groups entirely on her own; nothing in the app requires a caregiver to unlock learning. Words you add yourself appear right inside their groups, and there is a "word only" display option in Settings for when she starts recognizing written words.
+Talk stays reachable from child-facing activities by default. In **Caregiver → Settings → Talk &
+access**, a caregiver can choose:
 
-Above the words is the sentence bar. Every word she taps is spoken right away and also lands in the bar, so she can collect a thought across groups — "I", then "want", then over to Food for "cookie" — and tap the bar to hear the whole sentence spoken together. People count too: tapping mom's photo puts "mom" in the sentence. The Clear button empties it, and holding the Save button turns the sentence into a single button in a "My Phrases" group, so things she says often ("I need the bathroom") become one tap.
+- **Persistent Talk button** — the default single Talk button in the top bar.
+- **Custom dock** — Talk plus up to three stable quick words at the bottom.
+- **Off** — no persistent Talk control.
 
-There is also a type-to-speak keyboard — big letter keys that speak whatever she types — for when letters start to click. It stays hidden until you turn it on in Settings, so it never clutters her screen before she is ready. This is how single words grow into real sentences, so model it often: build little sentences yourself while she watches.
+The child can still open Talk from Home in every mode.
 
-Tip: iPadOS has a feature called Guided Access (in Settings under Accessibility) that keeps the iPad locked to one app. Turning it on for this app means she cannot wander into other apps mid-conversation.
+## Learn, Today, and Visual Routine
 
-## Keeping everything safe
+After a Learn session, Nuran can offer **Use [word] in Talk**. This opens the real Talk board on the
+correct group and highlights the learned word; it does not create a separate practice board. The
+caregiver can disable this bridge in Settings.
 
-Three layers protect her words. First, removing anything only hides it — **Recover deleted** brings it back with one tap. Second, the app snapshots itself every hour while open, and can restore from any snapshot. Third, the **Back up** button makes a single file with every word, photo, recording, and setting; save it to iCloud Drive and her whole vocabulary is safe even if the iPad is lost. The app will gently remind you to back up once a week. Please do it — it takes one tap.
+The simplified **Caregiver Today** screen is a calm action summary rather than an analytics
+dashboard. It shows backup health, recently used words, family recording coverage, the Visual
+Routine trial, and a short learning summary.
 
-## Privacy, plainly
+The first Visual Routine trial supports one caregiver-created family-photo scene with four familiar
+word hotspots. The scene appears as a Talk group, is included in backup/restore, and uses soft delete
+so it can be recovered. This deliberately stays a one-scene trial until a family validates it.
 
-No account. No internet needed. No analytics, no ads, no tracking of any kind. The record of which words she taps stays on the iPad and exists only so you can see her progress. Nothing is ever sent anywhere unless you personally export a backup file and choose where it goes.
+## Keeping data safe
 
-## If something goes wrong
+Normal removal is reversible through **Recover deleted**. Nuran also keeps rolling local snapshots
+and lets a caregiver export a complete JSON backup. The backup includes vocabulary, categories,
+people, settings, communication history, learning progress, and the Visual Routine scene. Learning
+history is capped at 20,000 events so it cannot grow forever.
 
-The app is built to never show a blank screen or a technical error. If its memory ever looks empty when it opens, it will offer to restore from a snapshot or a backup on its own. If speech ever stops working, recorded words still play, and words are always shown visibly. If you get stuck, the **Device check** screen in the caregiver area is the place to start.
+Save exported backups somewhere outside the device, such as iCloud Drive. Nothing is uploaded by
+Nuran itself.
 
-## Sharing this with other families
+## iPad setup
 
-This app is free and open source under the MIT license. You are welcome to copy it, change it, and share it with any family who needs it. See `TECHNICAL.md` and `RESEARCH.md` for how it is built and the research it follows.
+The PWA requires HTTPS for reliable installation and offline caching. Open its hosted URL in Safari,
+choose **Share → Add to Home Screen**, then launch it once while online so the offline shell is
+cached. The Capacitor iOS package uses the same canonical runtime source.
+
+For a child device, consider iPadOS **Guided Access** so the device remains inside Nuran.
+
+## Caregiver Settings
+
+Settings are grouped by task: Talk & access, Voice & sound, Pictures & language, Learn & Play,
+Motion & celebrations, and Data reminders. Changes save immediately. Motion defaults to None and can
+be set to Gentle or Full by a caregiver.
+
+See `TECHNICAL.md` for architecture, verification, and native synchronization. The illustrated
+user manual (`nuran-user-manual.pdf`, Version 2) covers this update: first-time setup, Talk
+Anytime, Learn & Play, the Visual Routine, Caregiver Today, and grouped Settings.
+
+## License
+
+Nuran is open source under the MIT license. Bundled third-party assets retain their own notices and
+licenses.

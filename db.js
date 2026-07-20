@@ -8,12 +8,13 @@
   'use strict';
 
   const DB_NAME = 'nuran-aac';
-  const DB_VERSION = 2; // v2: progressLog (append-only learning events, local only)
-  const CRITICAL_STORES = ['vocabulary', 'categories', 'people', 'settings'];
-  const ALL_DATA_STORES = ['vocabulary', 'categories', 'people', 'settings', 'history'];
+  const DB_VERSION = 3; // v3: one family-created visual scene
+  const CRITICAL_STORES = ['vocabulary', 'categories', 'people', 'settings', 'visualScenes'];
+  const ALL_DATA_STORES = ['vocabulary', 'categories', 'people', 'settings', 'visualScenes', 'history', 'progressLog'];
   const SNAPSHOT_HOURLY_KEEP = 24;   // rolling 24 hourly
   const SNAPSHOT_DAILY_KEEP = 14;    // plus one per day for 14 days
   const HISTORY_MAX = 5000;
+  const PROGRESS_MAX = 20000;
 
   let _db = null;
 
@@ -41,6 +42,7 @@
         mk('snapshots', 'id', true);
         mk('errorLog', 'id', true);
         mk('progressLog', 'id', true);
+        mk('visualScenes', 'id');
       };
       req.onsuccess = () => { _db = req.result; _db.onversionchange = () => _db.close(); resolve(_db); };
       req.onerror = () => reject(req.error);
@@ -151,6 +153,11 @@
 
   const DB = {
     uid, open, put, get, all,
+    meta: Object.freeze({
+      version: DB_VERSION,
+      allDataStores: Object.freeze([...ALL_DATA_STORES]),
+      limits: Object.freeze({ history: HISTORY_MAX, progress: PROGRESS_MAX }),
+    }),
 
     /* Soft delete: nothing is ever hard-deleted by a normal action (spec 2.3.1) */
     async softDelete(store, key) {
@@ -214,13 +221,29 @@
       } catch (e) { DB.logError('history write failed: ' + e.message); }
     },
 
-    /* ---------- Progress log (append-only learning events, local only).
-       Events are never mutated or destroyed; future "erase" features add
-       exclusion flags via new records rather than deleting (Samia's design). */
+    /* ---------- Progress log (append-only within a bounded local window).
+       Existing events are not mutated; the oldest are pruned above the cap. */
     async logProgress(event) {
       try {
         await put('progressLog', Object.assign({ ts: Date.now() }, event));
+        const rows = await all('progressLog');
+        if (rows.length > PROGRESS_MAX) {
+          rows.sort((a, b) => a.ts - b.ts);
+          const excess = rows.slice(0, rows.length - PROGRESS_MAX);
+          for (const r of excess) await hardDelete('progressLog', r.id);
+        }
       } catch (e) { DB.logError('progress write failed: ' + e.message); }
+    },
+
+    async progressEvents(options) {
+      const opts = options || {};
+      const since = Number(opts.since) || 0;
+      const type = opts.type || null;
+      const limit = Math.min(5000, Math.max(1, Number(opts.limit) || 1000));
+      const rows = (await all('progressLog'))
+        .filter(r => r.ts >= since && (!type || r.type === type))
+        .sort((a, b) => b.ts - a.ts);
+      return rows.slice(0, limit);
     },
 
     /* ---------- Error log (local only — spec 6.3) ---------- */
@@ -297,7 +320,7 @@
       const n = (st) => (d[st] || []).filter(r => !r.deleted).length;
       return {
         exportedAt: obj.exportedAt,
-        words: n('vocabulary'), categories: n('categories'), people: n('people'),
+        words: n('vocabulary'), categories: n('categories'), people: n('people'), scenes: n('visualScenes'),
       };
     },
 
@@ -305,8 +328,8 @@
       // Safety snapshot of whatever exists before we overwrite (never lose data, even during restore)
       await DB.takeSnapshot('pre-restore');
       for (const st of ALL_DATA_STORES) {
-        if (!obj.data[st]) continue;
         await clearStore(st);
+        if (!obj.data[st]) continue; // older backup: newer store restores as empty
         for (const raw of obj.data[st]) await put(st, reviveRecord(raw));
       }
       await DB.updateMirror();
@@ -316,8 +339,9 @@
       const snap = await get('snapshots', snapshotId);
       if (!snap) throw new Error('snapshot not found');
       await DB.takeSnapshot('pre-restore');
-      for (const st of Object.keys(snap.data)) {
+      for (const st of ALL_DATA_STORES) {
         await clearStore(st);
+        if (!snap.data[st]) continue; // older snapshot: newer store restores as empty
         for (const raw of snap.data[st]) await put(st, reviveRecord(raw));
       }
       await DB.updateMirror();

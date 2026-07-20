@@ -66,27 +66,7 @@
     ['cat-play', 'TV', 'tv'], ['cat-play', 'tablet', 'tablet'],
   ];
 
-  const DEFAULT_SETTINGS = {
-    speechRate: 0.55,     // slow therapeutic default (spec 5.2)
-    soundOn: true,
-    wordOnly: false,      // picture+word by default (spec 3.1)
-    sentenceBar: true,    // sentence-building bar on Talk/People screens
-    keyboard: false,      // type-to-speak keyboard (caregiver enables when ready)
-    helpEnabled: false,   // Help alarm tile on home (caregiver opt-in; see v2 design notes)
-    celebration: 'star',  // game celebration card: star | rainbow | balloons | check
-    celebrationLevel: 'cheerful', // quiet | cheerful | festive (festive adds gentle motion, opt-in)
-    pictureStyle: 'photos',       // photos (real photos when available) | symbols (symbol-first)
-    playNudge: 'off',             // minutes of play before a First/Then learning break; caregiver opt-in
-    gamesHidden: [],              // game ids hidden from the Play hub
-    contentLang: 'en',            // learning-content language (Model B: controls stay English)
-    pinned: ['seed-bathroom'], // word ids always visible on Talk pages
-    mode: 'core',
-    density: 4,           // 3-5 choices per screen target (spec 4.4)
-    backupReminderDays: 7,
-    lastBackupAt: null,
-    lastReminderAt: null,
-    firstRunDone: false,
-  };
+  const DEFAULT_SETTINGS = Object.freeze(Object.assign({}, window.NuranSettings.defaults));
 
   window.Seed = {
     /* Idempotent migration for installs seeded before yes/no existed.

@@ -73,7 +73,7 @@
           speechSynthesis.cancel();
           const u = new SpeechSynthesisUtterance(item.speakAs || item.label);
           u.rate = Math.min(10, Math.max(0.1, o.rate || 0.55));
-          u.pitch = 1;
+          u.pitch = (window.NuranVoice && window.NuranVoice.pitch) || 1;
           const lang = o.lang || item.lang;
           if (lang) {
             u.lang = lang;
@@ -123,6 +123,7 @@
         try {
           const u = new SpeechSynthesisUtterance(item.speakAs || item.label);
           u.rate = Math.min(10, Math.max(0.1, o.rate || 0.55));
+          u.pitch = (window.NuranVoice && window.NuranVoice.pitch) || 1;
           const v = pickVoice();
           if (v) u.voice = v;
           const done = () => resolve(true);

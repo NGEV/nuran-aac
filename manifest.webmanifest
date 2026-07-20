@@ -1,7 +1,7 @@
 {
   "name": "Nuran — Talk & Learn",
   "short_name": "Nuran",
-  "description": "Offline communication and early literacy app. No accounts, no tracking, nothing leaves the device.",
+  "description": "Private, offline-first communication and early literacy app. No accounts, ads, analytics, or tracking.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

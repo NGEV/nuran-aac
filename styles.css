@@ -1,5 +1,5 @@
 /* Nuran AAC — sensory-friendly, WCAG-aligned styles.
-   Muted low-saturation palette. No animations or transitions by design (Section 4.5). */
+   Muted low-saturation palette. Motion is caregiver-gated and reduced-motion aware. */
 
 :root {
   --bg: #f7f4ee;            /* warm off-white */
@@ -26,12 +26,29 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+.hidden, [hidden] { display: none !important; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* Atkinson Hyperlegible — Braille Institute's accessibility typeface (OFL) */
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  src: url('fonts/AtkinsonHyperlegible-Regular.woff2') format('woff2');
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: 'Atkinson Hyperlegible';
+  src: url('fonts/AtkinsonHyperlegible-Bold.woff2') format('woff2');
+  font-weight: 600 700; font-style: normal; font-display: swap;
+}
 
 html, body {
   height: 100%;
   background: var(--bg);
   color: var(--ink);
-  font-family: -apple-system, "SF Pro Rounded", "Segoe UI", Verdana, Arial, sans-serif;
+  font-family: 'Atkinson Hyperlegible', -apple-system, "SF Pro Rounded", "Segoe UI", Verdana, Arial, sans-serif;
   font-size: 20px;
   line-height: 1.5;
   -webkit-text-size-adjust: 100%;
@@ -54,7 +71,12 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 button:focus-visible { outline: 4px solid var(--accent); outline-offset: 2px; }
-button.pressed, button:active { background: #e9e4d9; } /* calm static feedback, no motion */
+button.pressed, button:active { background: #e9e4d9; box-shadow: none; } /* calm static feedback, no motion */
+
+/* Gentle depth: soft resting shadow lifts tiles off the page without motion */
+.tile, .home-btn, .group-chip, .menu-item, .wz-card, .ft-card, .pin-tile {
+  box-shadow: 0 2px 0 rgba(47, 58, 67, 0.07), 0 3px 10px rgba(47, 58, 67, 0.05);
+}
 
 img { display: block; max-width: 100%; }
 input, select, textarea {
@@ -77,6 +99,10 @@ input, select, textarea {
   background: var(--surface);
 }
 .btn-home { min-width: 76px; min-height: 56px; font-weight: 600; }
+.btn-talk {
+  min-width: 88px; min-height: 56px; font-weight: 700;
+  background: var(--cat-action-bg); border-color: var(--cat-action-edge);
+}
 .topbar .spacer { min-width: 76px; }
 
 .screen { flex: 1; display: flex; flex-direction: column; gap: 16px; }
@@ -104,6 +130,26 @@ input, select, textarea {
 }
 .home-grid.home-v2 .home-btn.hero svg { width: 96px; height: 96px; }
 .home-grid.home-v2 .home-btn { min-height: 150px; }
+
+/* First-run artwork must never push setup actions below a landscape viewport. */
+.welcome-logo { text-align: center; line-height: 0; }
+.welcome-logo svg { width: clamp(92px, 18vh, 160px); height: clamp(92px, 18vh, 160px); }
+
+/* ---------- Talk Anytime ---------- */
+.talk-dock {
+  position: sticky; bottom: max(6px, env(safe-area-inset-bottom)); z-index: 25;
+  display: grid; grid-template-columns: minmax(120px, 1.15fr) repeat(3, minmax(100px, 1fr));
+  gap: 8px; padding: 8px; margin-top: 10px;
+  background: rgba(255, 253, 248, 0.97); border: 2px solid var(--line); border-radius: 18px;
+  box-shadow: 0 -3px 16px rgba(47, 58, 67, 0.12);
+}
+.talk-dock button { min-height: 68px; font-weight: 700; }
+.talk-dock-main {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--cat-action-bg); border-color: var(--cat-action-edge);
+}
+.talk-dock-word { display: flex; align-items: center; justify-content: center; gap: 7px; }
+.dock-sym svg, .dock-sym img { width: 34px; height: 34px; display: block; border-radius: 7px; }
 
 /* ---------- Celebration levels ---------- */
 .cele-cheerful .cele-card { padding: 40px 60px; border-width: 4px; }
@@ -163,6 +209,34 @@ input, select, textarea {
 /* ---------- Translate & record ---------- */
 .lw-in { max-width: 260px; }
 
+/* ---------- Lucide UI icons (chrome only; word symbols stay ours) ---------- */
+.li { display: inline-flex; vertical-align: -3px; }
+.li svg { width: 20px; height: 20px; stroke: currentColor; }
+.menu-item .li svg { width: 24px; height: 24px; color: var(--ink-soft); }
+.menu-item b { display: inline-flex; align-items: center; gap: 8px; }
+
+/* ---------- Onboarding wizard ---------- */
+.wz-opts { display: flex; gap: 14px; flex-wrap: wrap; }
+.wz-opts.wz-col { flex-direction: column; }
+.wz-card {
+  flex: 1; min-width: 170px; min-height: 150px; border-radius: 18px; border-width: 3px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  background: var(--surface);
+}
+.wz-card.wide { min-height: 96px; }
+.wz-card.current { border-color: var(--accent); outline: 3px solid var(--accent); outline-offset: 2px; }
+.wz-demo svg { width: 64px; height: 64px; display: block; }
+@keyframes wz-gentle { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+@keyframes wz-full { 0%, 100% { transform: translateY(0) scale(1); } 30% { transform: translateY(-22px) scale(1.15); } 60% { transform: translateY(0) scale(0.95); } }
+.demo-gentle { animation: wz-gentle 2.4s ease-in-out infinite; display: inline-block; }
+.demo-full { animation: wz-full 1.1s ease-in-out infinite; display: inline-block; }
+.wz-mini { min-width: 64px; min-height: 64px; border-radius: 12px; }
+.wz-mini svg { width: 44px; height: 44px; }
+.wz-mini.current { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- Canvas games ---------- */
+#fl-canvas, #bl-canvas { border: 2px solid var(--line); border-radius: 16px; background: var(--surface); touch-action: none; display: block; }
+
 /* ---------- Piano ---------- */
 .piano-row { flex: 1; display: flex; gap: 12px; min-height: 340px; }
 .piano-key { flex: 1; border-width: 3px; border-radius: 16px; min-height: 340px; }
@@ -189,6 +263,7 @@ input, select, textarea {
 .mg-grid .mg-tile .sym { width: 110px; height: 110px; }
 .mg-grid .mg-tile .sym svg, .mg-grid .mg-tile .sym img { width: 110px; height: 110px; }
 .mg-tile.mg-dim { opacity: 0.35; }
+.bridge-highlight { outline: 6px solid var(--accent); outline-offset: 4px; }
 .cele-overlay {
   position: fixed; inset: 0; z-index: 60;
   background: rgba(47, 58, 67, 0.30);
@@ -279,6 +354,7 @@ input, select, textarea {
 .menu-item { min-height: 88px; text-align: left; display: flex; flex-direction: column; justify-content: center; gap: 4px; }
 .menu-item b { font-size: 1.1rem; }
 .menu-item span { color: var(--ink-soft); font-size: 0.9rem; }
+.menu-item.menu-featured { background: var(--cat-describe-bg); border-color: var(--cat-describe-edge); }
 
 .form { display: flex; flex-direction: column; gap: 14px; max-width: 560px; }
 .form label { font-weight: 600; display: flex; flex-direction: column; gap: 6px; }
@@ -305,6 +381,49 @@ input, select, textarea {
   border-radius: 14px; padding: 12px 16px;
 }
 .notice.warn { background: var(--cat-social-bg); border-color: var(--cat-social-edge); }
+
+/* ---------- Caregiver Today ---------- */
+.today-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
+.today-card {
+  background: var(--surface); border: 2px solid var(--line); border-radius: 18px;
+  padding: 18px; display: flex; flex-direction: column; gap: 12px; min-height: 180px;
+}
+.today-card h2 { font-size: 1.15rem; display: flex; align-items: center; gap: 8px; }
+.today-card p { color: var(--ink-soft); flex: 1; }
+.today-card button { align-self: flex-start; }
+.today-card.needs-action { background: var(--cat-social-bg); border-color: var(--cat-social-edge); }
+.today-wide { grid-column: 1 / -1; min-height: 140px; }
+.today-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* ---------- Grouped settings ---------- */
+.settings-layout { display: grid; gap: 18px; max-width: 760px; width: 100%; }
+.settings-section {
+  background: var(--surface); border: 2px solid var(--line); border-radius: 18px;
+  padding: 18px; display: flex; flex-direction: column; gap: 14px;
+}
+.settings-section h2, .settings-section legend {
+  font-size: 1.15rem; font-weight: 700; color: var(--ink); padding: 0 4px;
+}
+.settings-section label { font-weight: 600; display: flex; flex-direction: column; gap: 6px; }
+.dock-editor { display: grid; gap: 12px; padding: 14px; background: var(--bg); border-radius: 14px; }
+
+/* ---------- One-scene Visual Routine trial ---------- */
+.scene-edit-preview { max-height: 240px; width: 100%; object-fit: contain; border-radius: 16px; border: 2px solid var(--line); }
+.visual-scene-frame {
+  position: relative; flex: 1; min-height: 420px; overflow: hidden;
+  background: var(--surface); border: 3px solid var(--line); border-radius: 22px;
+}
+.visual-scene-frame > img { width: 100%; height: 100%; max-height: 68vh; object-fit: contain; }
+.visual-hotspots { position: absolute; inset: 0; pointer-events: none; }
+.visual-hotspot {
+  position: absolute; pointer-events: auto; min-width: 150px; min-height: 72px;
+  max-width: 42%; font-size: 1.15rem; font-weight: 700;
+  background-color: rgba(255, 253, 248, 0.94); box-shadow: 0 2px 12px rgba(47, 58, 67, 0.18);
+}
+.visual-hotspot.slot-0 { top: 16px; left: 16px; }
+.visual-hotspot.slot-1 { top: 16px; right: 16px; }
+.visual-hotspot.slot-2 { bottom: 16px; left: 16px; }
+.visual-hotspot.slot-3 { bottom: 16px; right: 16px; }
 
 /* ---------- Help overlay ---------- */
 #help-overlay {
@@ -351,4 +470,15 @@ input, select, textarea {
   .tile-grid.d4 { grid-template-columns: repeat(2, 1fr); }
   .tile-grid.d6, .tile-grid.d9 { grid-template-columns: repeat(2, 1fr); }
   .tile-grid.d12 { grid-template-columns: repeat(3, 1fr); }
+  .topbar { gap: 6px; }
+  .topbar h1 { font-size: 0.95rem; }
+  .btn-back, .btn-home, .btn-talk { min-width: 62px; padding: 8px; }
+  .talk-dock { grid-template-columns: repeat(2, 1fr); }
+  .today-grid { grid-template-columns: 1fr; }
+  .today-wide { grid-column: auto; }
+  .visual-hotspot { min-width: 116px; min-height: 62px; max-width: 44%; font-size: 1rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }

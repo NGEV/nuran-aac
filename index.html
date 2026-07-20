@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Nuran — Talk &amp; Learn</title>
-  <meta name="description" content="An offline communication and early literacy app. No accounts, no tracking, nothing leaves the device.">
+  <meta name="description" content="A private, offline-first communication and early literacy app. No accounts, ads, analytics, or tracking.">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icon-192.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -15,18 +15,25 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main id="app" aria-live="polite"></main>
+  <main id="app"></main>
+  <div id="status-live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
   <!-- Help alert overlay: offline, on-device, dismissed only by a caregiver hold (spec 6.4) -->
   <div id="help-overlay" role="alertdialog" aria-label="Help requested">
     <h2>Help!</h2>
-    <p>She pressed the Help button and needs a caregiver right now.</p>
+    <p>Your child pressed the Help button and needs a caregiver right now.</p>
     <button id="help-dismiss" class="gate-btn">Caregiver: press and hold to answer</button>
   </div>
 
-  <div id="modal-wrap"><div id="modal" role="dialog"></div></div>
+  <div id="modal-wrap" aria-hidden="true"><div id="modal" role="dialog" aria-modal="true" tabindex="-1"></div></div>
 
+  <script src="lucide.js"></script>
+  <script src="mulberry-map.js"></script>
   <script src="symbols.js"></script>
+  <script src="core/settings.js"></script>
+  <script src="core/activity-registry.js"></script>
+  <script src="core/platform.js"></script>
+  <script src="features/activity-catalog.js"></script>
   <script src="db.js"></script>
   <script src="speech.js"></script>
   <script src="seed.js"></script>

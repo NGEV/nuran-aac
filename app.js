@@ -2,7 +2,7 @@
    Design rules enforced here (spec Section 4):
    - every target ≥ 44px, generous spacing, no hover/drag/multi-touch for core actions
    - 3-5 choices per screen by default, one primary action per screen
-   - no animations; calm static tap feedback; all sound toggleable
+   - calm static feedback by default; caregiver-gated motion; all sound toggleable
    - persistent, predictable navigation with an always-available way back */
 
 (function () {
@@ -14,6 +14,11 @@
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   let settings = {};
+  let currentScreen = 'home';
+  let renderToken = 0;
+  let modalReturnFocus = null;
+  let modalOnDismiss = null;
+  let routeCleanups = [];
   /* Object-URL lifecycle: screen HTML is built BEFORE screen() runs, so URLs
      created during that build must not be revoked by the same render. New URLs
      collect in pendingURLs; releaseURLs() revokes the previous screen's URLs
@@ -31,8 +36,10 @@
 
   async function loadSettings() {
     const rows = await DB.all('settings');
-    settings = Object.assign({}, Seed.DEFAULT_SETTINGS);
-    rows.forEach(r => { settings[r.key] = r.value; });
+    const stored = {};
+    rows.forEach(r => { stored[r.key] = r.value; });
+    settings = window.NuranSettings.normalize(Object.assign({}, Seed.DEFAULT_SETTINGS, stored));
+    window.NuranVoice = { pitch: Number(settings.voicePitch) || 1 };
   }
   async function setSetting(key, value) {
     settings[key] = value;
@@ -42,16 +49,29 @@
   /* ---------- Tiny UI helpers ---------- */
 
   function screen(html) {
+    routeCleanups.splice(0).forEach(fn => { try { fn(); } catch (e) { DB.logError('screen cleanup failed: ' + e.message); } });
+    if (window.NuranActivities) window.NuranActivities.unmount();
     releaseURLs();
     app().innerHTML = html;
     window.scrollTo(0, 0);
+    const token = ++renderToken;
+    if (settings.talkAccessMode === 'dock' && childRoute(currentScreen)) renderTalkDock(token);
   }
 
+  function onScreenCleanup(fn) {
+    if (typeof fn === 'function') routeCleanups.push(fn);
+  }
+
+  const L = (n) => (window.Lucide && window.Lucide[n]) ? `<span class="li">${window.Lucide[n]}</span>` : '';
+
   function topbar(title, backScreen) {
+    const talkButton = settings.talkAccessMode === 'button' && childRoute(currentScreen) && currentScreen !== 'talk'
+      ? `<button class="btn-talk" data-nav="talk">${L('message-circle')} Talk</button>` : '';
     return `<div class="topbar">
-      ${backScreen ? `<button class="btn-back" data-nav="${backScreen}">&#8592; Back</button>` : '<span class="spacer"></span>'}
+      ${backScreen ? `<button class="btn-back" data-nav="${backScreen}">${L('arrow-left') || '&#8592;'} Back</button>` : '<span class="spacer"></span>'}
       <h1>${esc(title)}</h1>
-      <button class="btn-home" data-nav="home">Home</button>
+      ${talkButton}
+      <button class="btn-home" data-nav="home">${L('house')} Home</button>
     </div>`;
   }
 
@@ -91,31 +111,76 @@
     btn.addEventListener('pointerup', cancel);
     btn.addEventListener('pointerleave', cancel);
     btn.addEventListener('pointercancel', cancel);
+    // Keyboard/switch activation has no sustained pointer event. It stays available
+    // but deliberate: a confirm step replaces the hold (owner decision 2026-07-19),
+    // so a child using switch access or VoiceOver cannot trigger this in one activation.
+    btn.addEventListener('click', (e) => {
+      if (e.detail !== 0) return;
+      confirmModal('Caregiver check', '<p>This control is normally held down on purpose. Continue?</p>', 'Continue')
+        .then(ok => { if (ok) onDone(); });
+    });
   }
 
-  function showModal(html) {
+  function showModal(html, onDismiss) {
+    modalReturnFocus = document.activeElement;
+    modalOnDismiss = typeof onDismiss === 'function' ? onDismiss : null;
     $('#modal').innerHTML = html;
+    const heading = $('#modal').querySelector('h3');
+    if (heading) { heading.id = 'modal-title'; $('#modal').setAttribute('aria-labelledby', 'modal-title'); }
+    else $('#modal').removeAttribute('aria-labelledby');
     $('#modal-wrap').classList.add('active');
+    $('#modal-wrap').setAttribute('aria-hidden', 'false');
+    requestAnimationFrame(() => {
+      const first = $('#modal').querySelector('button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      (first || $('#modal')).focus();
+    });
   }
   function closeModal() {
     $('#modal-wrap').classList.remove('active');
+    $('#modal-wrap').setAttribute('aria-hidden', 'true');
     $('#modal').innerHTML = '';
+    if (modalReturnFocus && document.contains(modalReturnFocus)) modalReturnFocus.focus();
+    modalReturnFocus = null;
+    modalOnDismiss = null;
   }
+  document.addEventListener('keydown', (e) => {
+    if (!$('#modal-wrap').classList.contains('active')) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      const onDismiss = modalOnDismiss;
+      closeModal();
+      if (onDismiss) onDismiss();
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const focusable = [...$('#modal').querySelectorAll('button, input, select, textarea, [href], [tabindex]:not([tabindex="-1"])')]
+      .filter(el => !el.disabled && !el.hidden);
+    if (!focusable.length) { e.preventDefault(); $('#modal').focus(); return; }
+    const first = focusable[0], last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
   function confirmModal(title, body, confirmLabel) {
     return new Promise((resolve) => {
+      let settled = false;
+      const finish = (answer) => { if (!settled) { settled = true; resolve(answer); } };
       showModal(`<h3>${esc(title)}</h3><div>${body}</div>
         <div class="actions">
           <button id="m-cancel" class="btn-big">Cancel</button>
           <button id="m-ok" class="btn-primary btn-big">${esc(confirmLabel || 'Yes')}</button>
-        </div>`);
-      $('#m-cancel').onclick = () => { closeModal(); resolve(false); };
-      $('#m-ok').onclick = () => { closeModal(); resolve(true); };
+        </div>`, () => finish(false));
+      $('#m-cancel').onclick = () => { closeModal(); finish(false); };
+      $('#m-ok').onclick = () => { closeModal(); finish(true); };
     });
   }
 
   function symbolHTML(item) {
-    // Caregiver preference: real photos when available (default), or symbol-first
-    // for families following symbol-based programs (PCS/TEACCH-style teaching).
+    // Caregiver preference: real photos when available (default), symbol-first,
+    // or Mulberry (professional AAC symbol set) for concrete words.
+    if (settings.pictureStyle === 'mulberry' && window.MulberryMap) {
+      const key = (item.label || item.name || '').toLowerCase();
+      if (window.MulberryMap[key]) return `<img src="${window.MulberryMap[key]}" alt="">`;
+    }
     const symbolFirst = settings.pictureStyle === 'symbols';
     if (symbolFirst && item.symbolKey && Symbols.has(item.symbolKey)) return Symbols.get(item.symbolKey);
     if (item.imageBlob instanceof Blob) {
@@ -132,6 +197,8 @@
     Speech.prime();
     btn.classList.add('speaking');
     setTimeout(() => btn.classList.remove('speaking'), 450); // calm static change, no motion
+    const live = $('#status-live');
+    if (live) live.textContent = 'Speaking ' + (item.label || item.name || 'item');
     DB.logTap(item.id, item.label || item.name);
     await Speech.speakItem(item, { rate: settings.speechRate, soundOn: settings.soundOn });
   }
@@ -155,10 +222,55 @@
     });
   }
 
+  function blobToDataURL(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error || new Error('image could not be encoded'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
   /* ---------- Router ---------- */
 
   const screens = {};
-  let currentScreen = 'home';
+  const CHILD_ROUTES = new Set([
+    'people', 'learn', 'learngame', 'learnbreak', 'play', 'paint', 'piano', 'pop',
+    'memory', 'floats', 'blocks', 'keyboard', 'visualscene',
+  ]);
+
+  function childRoute(name) { return CHILD_ROUTES.has(name); }
+
+  function dockSymbolHTML(word) {
+    const key = (word.label || '').toLowerCase();
+    if (settings.pictureStyle === 'mulberry' && window.MulberryMap && window.MulberryMap[key]) {
+      return `<img src="${window.MulberryMap[key]}" alt="">`;
+    }
+    if (word.symbolKey && Symbols.has(word.symbolKey)) return Symbols.get(word.symbolKey);
+    return Symbols.letterTile(word.label || '?');
+  }
+
+  async function renderTalkDock(token) {
+    const ids = Array.isArray(settings.talkDockWordIds) ? settings.talkDockWordIds.slice(0, 3) : [];
+    const allWords = await DB.allActive('vocabulary').catch(() => []);
+    if (token !== renderToken || currentScreen === 'talk' || !childRoute(currentScreen)) return;
+    const words = ids.map(id => allWords.find(w => w.id === id)).filter(Boolean);
+    const wrap = document.createElement('nav');
+    wrap.className = 'talk-dock';
+    wrap.setAttribute('aria-label', 'Talk anytime');
+    wrap.innerHTML = `<button class="talk-dock-main" data-dock-talk>${L('message-circle')}<span>Talk</span></button>
+      ${words.map(w => `<button class="talk-dock-word tok-${esc(w.colorToken || 'neutral')}" data-dock-word="${esc(w.id)}">
+        <span class="dock-sym">${dockSymbolHTML(w)}</span><span>${esc(w.label)}</span></button>`).join('')}`;
+    app().appendChild(wrap);
+    wrap.querySelector('[data-dock-talk]').onclick = () => go('talk');
+    wrap.querySelectorAll('[data-dock-word]').forEach(btn => {
+      btn.onclick = () => {
+        const word = allWords.find(w => w.id === btn.dataset.dockWord);
+        if (word) speakAndFeedback(btn, word);
+      };
+    });
+  }
+
   function go(name, params) {
     currentScreen = name;
     (screens[name] || screens.home)(params || {});
@@ -215,7 +327,7 @@
     const b = $('#help-banner');
     if (!b) return;
     const ts = sessionStorage.getItem('helpBanner');
-    if (ts && helpActive) {
+    if (ts) { // sessionStorage alone: the record must survive an app reload
       b.classList.add('active');
       b.innerHTML = `Help was pressed at ${new Date(Number(ts)).toLocaleTimeString()}.
         <button id="banner-clear" style="margin-left:10px">Clear</button>`;
@@ -243,7 +355,7 @@
     return Symbols.letterTile(c.name);
   }
 
-  /* Sentence bar: tapped words collect here so she can combine them
+  /* Sentence bar: tapped words collect here so a child can combine them
      ("I want cookie") and speak the whole thought with one tap.
      Persists while moving between groups; only Clear empties it. */
   let sentence = [];
@@ -276,7 +388,7 @@
   /* Save the current sentence as a single tile in My Phrases (hold-to-save,
      so a stray tap cannot create tiles). Spoken via synthesis as one line. */
   async function savePhrase() {
-    if (!sentence.length) return;
+    if (sentence.length < 2) return; // single words are already tiles; saves need a real sentence
     const label = sentence.map(s => s.label).join(' ').slice(0, 60);
     const existing = await DB.allActive('vocabulary');
     if (!existing.some(w => w.categoryId === 'cat-phrases' && w.label.toLowerCase() === label.toLowerCase())) {
@@ -305,15 +417,16 @@
       speaking = false;
     };
     $('#sb-clear').onclick = () => { sentence = []; updateSpeakBar(); };
-    if ($('#sb-save')) longPress($('#sb-save'), savePhrase, 800);
+    if ($('#sb-save')) longPress($('#sb-save'), savePhrase, 1500);
   }
 
   /* Talk: core words open first (fastest communication), and a persistent
      symbol strip of every group — plus People — is always one tap away.
-     Modes never gate the child's navigation; she can reach everything herself. */
+     Modes never gate the child's navigation; they can reach everything independently. */
   screens.talk = async function (params) {
     const allWords = await DB.allActive('vocabulary');
     const cats = (await DB.allActive('categories')).sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
+    const visualScene = (await DB.allActive('visualScenes'))[0] || null;
     const usable = cats.filter(c => allWords.some(w => w.categoryId === c.id)); // no empty dead ends
     const cat = cats.find(c => c.id === (params.categoryId || 'cat-core')) || usable[0]
       || { id: 'none', name: 'Talk', colorToken: 'neutral' };
@@ -322,7 +435,9 @@
       .sort((a, b) => (a.sortOrder ?? a.createdAt) - (b.sortOrder ?? b.createdAt));
     const per = Number(settings.density) || 4;
     const pages = Math.max(1, Math.ceil(words.length / per));
-    const page = Math.min(Number(params.page) || 0, pages - 1);
+    const highlightIndex = params.highlightId ? words.findIndex(w => w.id === params.highlightId) : -1;
+    const requestedPage = params.page != null ? Number(params.page) : (highlightIndex >= 0 ? Math.floor(highlightIndex / per) : 0);
+    const page = Math.min(Math.max(0, requestedPage || 0), pages - 1);
     const slice = words.slice(page * per, page * per + per);
     const wordOnly = !!settings.wordOnly;
     const dClass = per <= 4 ? 'd4' : per <= 6 ? 'd6' : per <= 9 ? 'd9' : 'd12';
@@ -335,6 +450,9 @@
       <button class="group-chip tok-people" data-goto="__people">
         <span class="gsym">${Symbols.get('_people')}</span><span class="glbl">People</span>
       </button>
+      ${visualScene ? `<button class="group-chip tok-place" data-goto="__scene" aria-label="${esc(visualScene.title)}">
+        <span class="gsym">${Symbols.get('home')}</span><span class="glbl">${esc(visualScene.title.length > 14 ? visualScene.title.slice(0, 13) + '…' : visualScene.title)}</span>
+      </button>` : ''}
       ${settings.keyboard ? `<button class="group-chip tok-neutral" data-goto="__keyboard">
         <span class="gsym">${Symbols.letterTile('A')}</span><span class="glbl">Keyboard</span>
       </button>` : ''}
@@ -357,7 +475,7 @@
         ${pinnedRow}
         <div class="tile-grid ${dClass}">
           ${slice.map(w => `
-            <button class="tile ${wordOnly ? 'word-only' : ''} tok-${esc(w.colorToken || cat.colorToken)}" data-word="${esc(w.id)}">
+            <button class="tile ${wordOnly ? 'word-only' : ''} ${w.id === params.highlightId ? 'bridge-highlight' : ''} tok-${esc(w.colorToken || cat.colorToken)}" data-word="${esc(w.id)}">
               ${wordOnly ? '' : `<span class="sym">${symbolHTML(w)}</span>`}
               <span class="lbl">${esc(w.label)}</span>
             </button>`).join('') ||
@@ -372,6 +490,7 @@
     bindNav();
     app().querySelectorAll('[data-goto]').forEach(b => {
       b.onclick = () => b.dataset.goto === '__people' ? go('people')
+        : b.dataset.goto === '__scene' ? go('visualscene')
         : b.dataset.goto === '__keyboard' ? go('keyboard')
         : go('talk', { categoryId: b.dataset.goto });
     });
@@ -398,6 +517,12 @@
         }
       };
     });
+    const highlighted = app().querySelector('.bridge-highlight');
+    if (highlighted) {
+      const live = $('#status-live');
+      if (live) live.textContent = highlighted.textContent.trim() + ' is ready in Talk';
+      requestAnimationFrame(() => highlighted.focus({ preventScroll: true }));
+    }
     if (pages > 1) {
       const nav = (d) => go('talk', { categoryId: cat.id, page: page + d });
       if ($('#pg-prev')) $('#pg-prev').onclick = () => nav(-1);
@@ -408,7 +533,7 @@
   /* ---------- Learn: word-to-picture matching (v2.0).
      PECS-style receptive matching. Adaptive: starts at 2 choices, grows to 4
      with a streak (ZPD/scaffolding). Wrong answers dim quietly — no punishment.
-     Celebration is a calm static card (no motion), caregiver-selectable. ---------- */
+     Celebrations stay static unless the caregiver selects Festive and permits motion. ---------- */
 
   let mg = null;
 
@@ -425,7 +550,8 @@
      quiet = small card + two notes; cheerful (default) = big card + melody;
      festive = adds gentle floating stars (motion is OPT-IN only, per sensory rules). */
   function showCelebration(word, onNext) {
-    const level = ['quiet', 'cheerful', 'festive'].includes(settings.celebrationLevel) ? settings.celebrationLevel : 'cheerful';
+    let level = ['quiet', 'cheerful', 'festive'].includes(settings.celebrationLevel) ? settings.celebrationLevel : 'cheerful';
+    if (level === 'festive' && settings.motionLevel === 'none') level = 'cheerful'; // motion gate
     const ov = document.createElement('div');
     ov.className = 'cele-overlay cele-' + level;
     const floaters = level === 'festive'
@@ -439,40 +565,50 @@
     document.body.appendChild(ov);
     if (settings.soundOn) Speech.chime(level);
     Speech.speakItem(word, { rate: settings.speechRate, soundOn: settings.soundOn });
-    const done = () => { if (ov.parentNode) ov.remove(); onNext(); };
+    let completed = false;
+    let timerId = null;
+    const done = () => {
+      if (completed) return;
+      completed = true;
+      if (timerId) clearTimeout(timerId);
+      if (ov.parentNode) ov.remove();
+      onNext();
+    };
     ov.onclick = done;
-    setTimeout(done, level === 'quiet' ? 1600 : 2200);
+    timerId = setTimeout(done, level === 'quiet' ? 1600 : 2200);
   }
 
   /* ---------- Learn hub: three matching games, one familiar engine ---------- */
 
   screens.learn = async function () {
     mg = null;
+    const activities = window.NuranActivities.list({ family: 'learn', context: settings });
     screen(`${topbar('Learn', null)}
       <div class="screen">
         <div class="tile-grid d6">
-          <button class="tile tok-thing" data-game="wp">
-            <span class="sym">${Symbols.get('apple')}</span><span class="lbl">Match Pictures</span></button>
-          <button class="tile tok-describe" data-game="ww">
-            <span class="sym">${Symbols.get('same')}</span><span class="lbl">Match Words</span></button>
-          <button class="tile tok-question" data-game="cc">
-            <span class="sym">${Symbols.get('cele_rainbow')}</span><span class="lbl">Match Colors</span></button>
+          ${activities.map(a => `<button class="tile tok-${esc(a.token)}" data-activity="${esc(a.id)}">
+            <span class="sym">${Symbols.get(a.symbolKey)}</span><span class="lbl">${esc(a.label)}</span></button>`).join('')}
           ${settings.contentLang && settings.contentLang !== 'en' ? `
           <button class="tile tok-people" data-langgame="${esc(settings.contentLang)}">
             <span class="sym">${Symbols.get('_talk')}</span><span class="lbl">${settings.contentLang === 'ar' ? 'Arabic' : 'Somali'} words</span></button>` : ''}
         </div>
-        <div class="hint" style="text-align:center">Games start easy and grow with her. Wrong taps never scold — after two tries, the answer gently shows itself.</div>
+        <div class="hint" style="text-align:center">Games start easy and grow with your child. Wrong taps never scold — after two tries, the answer gently shows itself.</div>
       </div>`);
     bindNav();
-    app().querySelectorAll('[data-game]').forEach(b => {
-      b.onclick = () => { Speech.prime(); go('learngame', { mode: b.dataset.game }); };
+    app().querySelectorAll('[data-activity]').forEach(b => {
+      b.onclick = () => {
+        const activity = window.NuranActivities.get(b.dataset.activity);
+        if (!activity) return;
+        Speech.prime();
+        go(activity.route, Object.assign({}, activity.params));
+      };
     });
     const lg = app().querySelector('[data-langgame]');
     if (lg) lg.onclick = () => { Speech.prime(); go('learngame', { mode: 'wp', lang: lg.dataset.langgame }); };
   };
 
   /* ---------- Translate & record: caregiver builds another language, word by word.
-     For Somali there is no synthetic voice anywhere, so recordings ARE the voice. ---------- */
+     Family recordings take priority because device Somali synthesis and pronunciation vary. ---------- */
 
   screens.langwords = async function (params) {
     const lang = ['ar', 'so'].includes(params.lang) ? params.lang : (settings.contentLang !== 'en' ? settings.contentLang : 'so');
@@ -494,8 +630,8 @@
             return `<div class="list-row">
               <div style="min-width:110px"><b>${esc(w.label)}</b></div>
               <input class="lw-in" data-lw="${esc(w.id)}" value="${esc(t.label || '')}" placeholder="${esc(LANG_NAMES[lang])}…" ${lang === 'ar' ? 'dir="rtl"' : ''}>
-              <button data-lwrec="${esc(w.id)}">${'🎙'}</button>
-              <button data-lwplay="${esc(w.id)}" ${t.audioBlob ? '' : 'disabled'}>&#9654;</button>
+              <button data-lwrec="${esc(w.id)}" aria-label="record">${L('mic') || '🎙'}</button>
+              <button data-lwplay="${esc(w.id)}" aria-label="play" ${t.audioBlob ? '' : 'disabled'}>${L('play') || '&#9654;'}</button>
             </div>`;
           }).join('')}
         </div>
@@ -525,7 +661,7 @@
         try {
           const rec = await Speech.startRecording();
           activeRec = { rec, btn: b };
-          b.textContent = '■';
+          b.innerHTML = L('square') || '■';
         } catch (e) { toast('Microphone could not start. Check permissions.'); }
       };
     });
@@ -545,7 +681,7 @@
     const mode = ['wp', 'ww', 'cc'].includes(params.mode) ? params.mode : 'wp';
     const lang = ['ar', 'so'].includes(params.lang) ? params.lang : null;
     if (!mg || mg.mode !== mode || mg.lang !== lang) {
-      mg = { mode, lang, round: 1, total: breakActive ? 6 : 8, choices: 2, streak: 0 };
+      mg = { mode, lang, round: 1, total: breakActive ? 6 : 8, choices: 2, streak: 0, counts: {} };
     }
     mg.misses = 0;
     const tLabel = (w) => (lang && w.translations && w.translations[lang] && w.translations[lang].label) ? w.translations[lang].label : w.label;
@@ -609,7 +745,7 @@
     app().querySelectorAll('[data-opt]').forEach(b => {
       b.onclick = () => {
         const right = b.dataset.opt === target.id;
-        DB.logProgress({ type: 'match-' + mode, word: target.label, correct: right, choices: opts.length, assisted: mg.misses >= 2 });
+        DB.logProgress({ type: 'match-' + mode, wordId: target.id, word: target.label, correct: right, choices: opts.length, assisted: mg.misses >= 2 });
         if (!right) {
           mg.streak = 0;
           mg.misses++;
@@ -625,11 +761,21 @@
         }
         mg.streak++;
         if (mg.streak % 3 === 0 && mg.choices < 4) mg.choices++;
+        // Track per-session unassisted practice so the Talk bridge offers the
+        // MOST-practiced word of the session, not merely the final round's word.
+        if (mode !== 'cc' && mg.misses < 2) {
+          const c = mg.counts[target.id] || { id: target.id, label: target.label, categoryId: target.categoryId, n: 0 };
+          c.n++;
+          mg.counts[target.id] = c;
+        }
         const finished = mg.round >= mg.total;
         showCelebration({ label: tLabel(target), audioBlob: tAudio ? tAudio(target) : null, lang: lang ? LANG_TAGS[lang] : undefined }, () => {
           if (finished) {
-            mg = null;
             const backToPlay = breakActive;
+            const practiced = Object.values(mg.counts).sort((a, b) => b.n - a.n)[0] || null;
+            const bridgeWord = settings.learnTalkBridge !== false && !backToPlay && !lang && mode !== 'cc'
+              ? (practiced || { id: target.id, label: target.label, categoryId: target.categoryId }) : null;
+            mg = null;
             if (backToPlay) { breakActive = false; playSec = 0; nudgeWarned = false; }
             screen(`${topbar('Learn', 'learn')}
               <div class="screen" style="justify-content:center;align-items:center;gap:20px">
@@ -637,7 +783,8 @@
                 <div class="cele-word">${backToPlay ? 'Games are back!' : 'All done!'}</div>
                 <div class="row" style="display:flex;gap:14px">
                   ${backToPlay ? '<button class="btn-primary btn-big" data-nav="play">Back to games</button>' : `
-                  <button class="btn-primary btn-big" data-game-again="${mode}">Play again</button>
+                  ${bridgeWord ? `<button class="btn-primary btn-big" id="learn-use-talk">Use ${esc(bridgeWord.label)} in Talk</button>` : ''}
+                  <button class="${bridgeWord ? '' : 'btn-primary'} btn-big" data-game-again="${mode}">Play again</button>
                   <button class="btn-big" data-nav="learn">More games</button>
                   <button class="btn-big" data-nav="home">Home</button>`}
                 </div>
@@ -645,6 +792,9 @@
             bindNav();
             const again = app().querySelector('[data-game-again]');
             if (again) again.onclick = () => go('learngame', { mode, lang });
+            if ($('#learn-use-talk')) $('#learn-use-talk').onclick = () => go('talk', {
+              categoryId: bridgeWord.categoryId, highlightId: bridgeWord.id,
+            });
           } else {
             mg.round++;
             go('learngame', { mode, lang });
@@ -659,7 +809,7 @@
      triggers a First/Then learning break with advance warning and a visible
      countdown (Dettmer et al. 2000; visual-timer transition practice). */
 
-  const PLAY_SCREENS = ['play', 'paint', 'piano', 'pop', 'memory'];
+  const PLAY_SCREENS = ['play', 'paint', 'piano', 'pop', 'memory', 'floats', 'blocks'];
   let playSec = 0, nudgeWarned = false, breakActive = false;
 
   function toast(msg) {
@@ -673,7 +823,7 @@
   function nudgeTick() {
     const lim = Number(settings.playNudge);
     if (!lim || isNaN(lim)) { playSec = 0; nudgeWarned = false; return; }
-    if (!PLAY_SCREENS.includes(currentScreen)) return;
+    if (!PLAY_SCREENS.includes(currentScreen) || document.visibilityState !== 'visible') return;
     playSec += 15;
     const limS = lim * 60;
     if (!nudgeWarned && playSec >= limS - 120) {
@@ -692,22 +842,26 @@
 
   screens.play = function () {
     const hidden = Array.isArray(settings.gamesHidden) ? settings.gamesHidden : [];
-    const games = [
-      ['pop', 'Balloons', 'tok-social', balloonSVG('#C98BA6')],
-      ['memory', 'Memory', 'tok-describe', Symbols.get('same')],
-      ['paint', 'Paint', 'tok-question', Symbols.get('_paint')],
-      ['piano', 'Music', 'tok-place', Symbols.get('_piano')],
-    ].filter(g => !hidden.includes(g[0]));
+    const activities = window.NuranActivities.list({ family: 'play', context: settings })
+      .filter(a => !hidden.includes(a.id));
+    const iconFor = (activity) => activity.icon === 'balloon-pink' ? balloonSVG('#C98BA6')
+      : activity.icon === 'balloon-blue' ? balloonSVG('#7D9CB0')
+      : Symbols.get(activity.symbolKey);
     screen(`${topbar('Play', null)}
       <div class="screen">
-        ${games.length ? `<div class="tile-grid d6">
-          ${games.map(([id, name, tok, icon]) => `<button class="tile ${tok}" data-fun="${id}">
-            <span class="sym">${icon}</span><span class="lbl">${name}</span></button>`).join('')}
+        ${activities.length ? `<div class="tile-grid d6">
+          ${activities.map(a => `<button class="tile tok-${esc(a.token)}" data-activity="${esc(a.id)}">
+            <span class="sym">${iconFor(a)}</span><span class="lbl">${esc(a.label)}</span></button>`).join('')}
         </div>` : '<div class="notice">The games are resting right now. A caregiver can wake them up in Settings.</div>'}
       </div>`);
     bindNav();
-    app().querySelectorAll('[data-fun]').forEach(b => {
-      b.onclick = () => { Speech.prime(); go(b.dataset.fun); };
+    app().querySelectorAll('[data-activity]').forEach(b => {
+      b.onclick = () => {
+        const activity = window.NuranActivities.get(b.dataset.activity);
+        if (!activity) return;
+        Speech.prime();
+        go(activity.route, Object.assign({}, activity.params));
+      };
     });
   };
 
@@ -743,7 +897,7 @@
     });
   };
 
-  /* Memory: classic pairs. Gently challenging, uses her own word pictures. */
+  /* Memory: classic pairs. Gently challenging, uses the child's own word pictures. */
   let mem = null;
   screens.memory = async function () {
     if (!mem) {
@@ -796,6 +950,114 @@
     });
   };
 
+  /* Sky Pop: balloons drift upward; tap to pop. Motion-level gated. */
+  screens.floats = function () {
+    screen(`${topbar('Sky Pop', 'play')}
+      <div class="screen"><canvas id="fl-canvas"></canvas></div>`);
+    bindNav();
+    const canvas = $('#fl-canvas');
+    canvas.width = canvas.parentElement.clientWidth - 4;
+    canvas.height = Math.max(360, window.innerHeight - canvas.getBoundingClientRect().top - 30 - (settings.talkAccessMode === 'dock' ? 96 : 0));
+    const ctx = canvas.getContext('2d');
+    const speed = settings.motionLevel === 'full' ? 1.6 : 0.8;
+    const mk = () => ({ x: 30 + Math.random() * (canvas.width - 60), y: canvas.height + 40,
+      r: 26 + Math.random() * 14, c: GAME_COLORS[Math.floor(Math.random() * GAME_COLORS.length)][1] });
+    let items = Array.from({ length: 6 }, () => Object.assign(mk(), { y: Math.random() * canvas.height }));
+    const draw = () => {
+      if (currentScreen !== 'floats') return;
+      ctx.fillStyle = '#FFFDF8'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      items.forEach(b => {
+        b.y -= speed;
+        if (b.y < -50) Object.assign(b, mk());
+        ctx.beginPath(); ctx.ellipse(b.x, b.y, b.r * 0.8, b.r, 0, 0, Math.PI * 2);
+        ctx.fillStyle = b.c; ctx.fill(); ctx.strokeStyle = '#4a5a66'; ctx.lineWidth = 3; ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(b.x, b.y + b.r); ctx.quadraticCurveTo(b.x - 4, b.y + b.r + 14, b.x, b.y + b.r + 26); ctx.stroke();
+      });
+      requestAnimationFrame(draw);
+    };
+    canvas.addEventListener('pointerdown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left, y = e.clientY - rect.top;
+      items.forEach(b => {
+        if (Math.hypot(b.x - x, b.y - y) < b.r + 18) {
+          if (settings.soundOn) Speech.pop();
+          Object.assign(b, mk());
+        }
+      });
+    });
+    requestAnimationFrame(draw);
+  };
+
+  /* Blocks: a gentle falling-blocks classic. Tap left/right to steer, middle to drop. */
+  screens.blocks = function () {
+    screen(`${topbar('Blocks', 'play')}
+      <div class="screen"><canvas id="bl-canvas"></canvas>
+      <div class="hint" style="text-align:center">Tap the sides to steer. Tap the middle to drop.</div></div>`);
+    bindNav();
+    const canvas = $('#bl-canvas');
+    const COLS = 6, ROWS = 10;
+    const availW = canvas.parentElement.clientWidth - 4;
+    const availH = Math.max(320, window.innerHeight - canvas.getBoundingClientRect().top - 70 - (settings.talkAccessMode === 'dock' ? 96 : 0));
+    const cell = Math.floor(Math.min(availW / COLS, availH / ROWS));
+    canvas.width = cell * COLS; canvas.height = cell * ROWS;
+    canvas.style.margin = '0 auto';
+    const ctx = canvas.getContext('2d');
+    let grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+    const SHAPES = [[[0, 0]], [[0, 0], [1, 0]], [[0, 0], [0, 1]], [[0, 0], [1, 0], [0, 1], [1, 1]]];
+    let piece = null, timer = null;
+    const speed = settings.motionLevel === 'full' ? 550 : 750;
+    const newPiece = () => {
+      piece = { cells: SHAPES[Math.floor(Math.random() * SHAPES.length)],
+        x: 2, y: 0, c: GAME_COLORS[Math.floor(Math.random() * GAME_COLORS.length)][1] };
+      if (collides(piece.x, piece.y)) { // stack reached the top: gentle reset
+        grid = Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+        if (settings.soundOn) Speech.chime('quiet');
+      }
+    };
+    const collides = (px, py) => piece.cells.some(([dx, dy]) => {
+      const x = px + dx, y = py + dy;
+      return x < 0 || x >= COLS || y >= ROWS || (y >= 0 && grid[y][x]);
+    });
+    const lock = () => {
+      piece.cells.forEach(([dx, dy]) => { if (piece.y + dy >= 0) grid[piece.y + dy][piece.x + dx] = piece.c; });
+      for (let r = ROWS - 1; r >= 0; r--) {
+        if (grid[r].every(Boolean)) {
+          grid.splice(r, 1); grid.unshift(Array(COLS).fill(null));
+          if (settings.soundOn) Speech.chime('cheerful');
+          r++;
+        }
+      }
+      newPiece();
+    };
+    const step = () => { if (!collides(piece.x, piece.y + 1)) piece.y++; else lock(); };
+    const draw = () => {
+      ctx.fillStyle = '#FFFDF8'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = '#EFECE5';
+      for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+        if (grid[r][c]) { ctx.fillStyle = grid[r][c]; ctx.fillRect(c * cell + 2, r * cell + 2, cell - 4, cell - 4); }
+        else ctx.strokeRect(c * cell, r * cell, cell, cell);
+      }
+      if (piece) {
+        ctx.fillStyle = piece.c;
+        piece.cells.forEach(([dx, dy]) => ctx.fillRect((piece.x + dx) * cell + 2, (piece.y + dy) * cell + 2, cell - 4, cell - 4));
+      }
+    };
+    newPiece();
+    timer = setInterval(() => {
+      if (currentScreen !== 'blocks') { clearInterval(timer); return; }
+      step(); draw();
+    }, speed);
+    draw();
+    canvas.addEventListener('pointerdown', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      if (x < canvas.width / 3) { if (!collides(piece.x - 1, piece.y)) piece.x--; }
+      else if (x > canvas.width * 2 / 3) { if (!collides(piece.x + 1, piece.y)) piece.x++; }
+      else { while (!collides(piece.x, piece.y + 1)) piece.y++; lock(); }
+      draw();
+    });
+  };
+
   /* First/Then learning break with visible countdown (caregiver-configured). */
   let lbTimer = null;
   screens.learnbreak = function () {
@@ -836,7 +1098,7 @@
     const canvas = $('#paint-canvas');
     const wrap = canvas.parentElement;
     canvas.width = wrap.clientWidth - 4;
-    canvas.height = Math.max(320, window.innerHeight - canvas.getBoundingClientRect().top - 30);
+    canvas.height = Math.max(320, window.innerHeight - canvas.getBoundingClientRect().top - 30 - (settings.talkAccessMode === 'dock' ? 96 : 0));
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#FFFDF8';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -983,6 +1245,119 @@
     });
   };
 
+  /* ---------- Onboarding wizard (first run; re-runnable from caregiver area) ---------- */
+
+  const VOICE_PRESETS = [
+    ['warm', 'Warm & slow', 0.45, 1.25, 'Higher, gentle, and unhurried'],
+    ['clear', 'Clear & friendly', 0.55, 1.0, 'Slow and plain — a good fit for school age'],
+    ['calm', 'Calm & steady', 0.5, 0.85, 'Lower and even — often preferred by older kids and young adults'],
+  ];
+
+  screens.welcome = function () {
+    screen(`<div class="screen" style="justify-content:center;max-width:680px;margin:0 auto;gap:18px">
+      <div class="welcome-logo">${Symbols.get('_talk')}</div>
+      <h2 style="text-align:center;font-size:1.6rem">Welcome to Nuran</h2>
+      <p style="text-align:center">A minute of setup makes the app fit your child. You can change everything later in Settings.</p>
+      <button class="btn-primary btn-big" id="wz-quick">${settings.firstRunDone ? 'Reset to recommended defaults — replaces current voice, motion, and celebration choices' : 'Quick setup — sensible defaults, done in one tap'}</button>
+      <button class="btn-big" id="wz-custom">Choose settings — motion, celebrations, and voice, with demos</button>
+    </div>`);
+    $('#wz-quick').onclick = async () => {
+      await setSetting('speechRate', 0.45);
+      await setSetting('voicePitch', 1.25);
+      await setSetting('motionLevel', 'none');
+      await setSetting('celebrationLevel', 'cheerful');
+      await setSetting('pictureStyle', 'photos');
+      window.NuranVoice = { pitch: 1.25 };
+      await setSetting('firstRunDone', true);
+      go('home');
+    };
+    $('#wz-custom').onclick = () => go('wizvoice'); // voice first: the default robot voice is the most off-putting thing to leave unfixed
+  };
+
+  screens.wizmotion = function () {
+    screen(`${topbar('Setup 2 of 3 — Movement', null)}
+      <div class="screen" style="max-width:680px;margin:0 auto">
+        <p>How much should things move on screen? Many autistic children find motion overwhelming; some enjoy it. Watch each demo:</p>
+        <div class="wz-opts">
+          ${[['none', 'Still', 'Moving games stay hidden'], ['gentle', 'Gentle', 'Soft, slow drifting'], ['full', 'Playful', 'Lively bounces']].map(([v, n, d]) => `
+            <button class="wz-card ${settings.motionLevel === v ? 'current' : ''}" data-mo="${v}">
+              <span class="wz-demo demo-${v}">${Symbols.get('_star')}</span>
+              <b>${n}</b><span class="hint">${d}</span>
+            </button>`).join('')}
+        </div>
+        <button class="btn-primary btn-big" data-nav="wizcele">Next</button>
+      </div>`);
+    bindNav();
+    app().querySelectorAll('[data-mo]').forEach(b => {
+      b.onclick = async () => {
+        await setSetting('motionLevel', b.dataset.mo);
+        app().querySelectorAll('.wz-card').forEach(c => c.classList.remove('current'));
+        b.classList.add('current');
+      };
+    });
+  };
+
+  screens.wizcele = function () {
+    screen(`${topbar('Setup 3 of 3 — Celebrations', null)}
+      <div class="screen" style="max-width:680px;margin:0 auto">
+        <p>When a game answer is right, how big should the cheer be?</p>
+        <div class="wz-opts">
+          ${[['quiet', 'Quiet'], ['cheerful', 'Cheerful'], ['festive', 'Festive']].map(([v, n]) => `
+            <button class="wz-card ${settings.celebrationLevel === v ? 'current' : ''}" data-ce="${v}"><b>${n}</b></button>`).join('')}
+        </div>
+        <div class="row" style="display:flex;gap:12px;align-items:center">
+          <span>Picture:</span>
+          ${['star', 'rainbow', 'balloons', 'check'].map(v => `
+            <button class="wz-mini ${settings.celebration === v ? 'current' : ''}" data-cg="${v}">${Symbols.get('cele_' + v)}</button>`).join('')}
+        </div>
+        <button class="btn-big" id="wz-prev">Try it</button>
+        <button class="btn-primary btn-big" id="wz-done">Finish</button>
+      </div>`);
+    bindNav();
+    app().querySelectorAll('[data-ce]').forEach(b => { b.onclick = async () => {
+      await setSetting('celebrationLevel', b.dataset.ce);
+      app().querySelectorAll('[data-ce]').forEach(c => c.classList.remove('current'));
+      b.classList.add('current');
+    }; });
+    app().querySelectorAll('[data-cg]').forEach(b => { b.onclick = async () => {
+      await setSetting('celebration', b.dataset.cg);
+      app().querySelectorAll('[data-cg]').forEach(c => c.classList.remove('current'));
+      b.classList.add('current');
+    }; });
+    $('#wz-prev').onclick = () => { Speech.prime(); showCelebration({ label: 'wonderful' }, () => {}); };
+    $('#wz-done').onclick = async () => {
+      await setSetting('firstRunDone', true);
+      go('home');
+    };
+  };
+
+  screens.wizvoice = function () {
+    screen(`${topbar('Setup 1 of 3 — Voice', null)}
+      <div class="screen" style="max-width:680px;margin:0 auto">
+        <p>Pick a speaking style for the device voice. Tap each to hear it:</p>
+        <div class="wz-opts wz-col">
+          ${VOICE_PRESETS.map(([v, n, r, p, d]) => `
+            <button class="wz-card wide" data-vp="${v}" data-r="${r}" data-p="${p}">
+              <b>${n}</b><span class="hint">${d}</span>
+            </button>`).join('')}
+        </div>
+        <div class="hint">Available device voices depend on the iPad. A caregiver's own recording always takes priority.</div>
+        <button class="btn-primary btn-big" data-nav="wizmotion">Next</button>
+      </div>`);
+    bindNav();
+    app().querySelectorAll('[data-vp]').forEach(b => {
+      b.onclick = async () => {
+        await setSetting('speechRate', Number(b.dataset.r));
+        await setSetting('voicePitch', Number(b.dataset.p));
+        window.NuranVoice = { pitch: Number(b.dataset.p) };
+        app().querySelectorAll('.wz-card').forEach(c => c.classList.remove('current'));
+        b.classList.add('current');
+        Speech.prime();
+        Speech.speakItem({ label: 'Hello! I want more water, please.' }, { rate: Number(b.dataset.r), soundOn: true });
+      };
+    });
+  };
+
   /* ---------- Caregiver area ---------- */
 
   screens.caregiver = async function () {
@@ -996,18 +1371,21 @@
           A backup keeps everything safe if the iPad is lost or cleared.
           <button data-nav="backup" style="margin-left:8px">Back up now</button></div>` : ''}
         <div class="menu-list">
-          <button class="menu-item" data-nav="addword"><b>Add a word</b><span>New word with photo and speech</span></button>
-          <button class="menu-item" data-nav="managewords"><b>Words &amp; groups</b><span>Edit, move, or remove words</span></button>
-          <button class="menu-item" data-nav="managepeople"><b>People</b><span>Add family photos and names</span></button>
-          <button class="menu-item" data-nav="settingsview"><b>Settings</b><span>Mode, speech speed, sound, layout</span></button>
-          <button class="menu-item" data-nav="backup"><b>Back up</b><span>Save a copy off this iPad</span></button>
-          <button class="menu-item" data-nav="restore"><b>Restore</b><span>Bring data back from a backup</span></button>
-          <button class="menu-item" data-nav="recover"><b>Recover deleted</b><span>Nothing is ever really gone</span></button>
-          <button class="menu-item" data-nav="progress"><b>Progress</b><span>Words used most, gently tracked</span></button>
-          <button class="menu-item" data-nav="langwords"><b>Translate &amp; record</b><span>Add another language, word by word</span></button>
-          <button class="menu-item" data-nav="devicecheck"><b>Device check</b><span>Make sure everything works</span></button>
-          <button class="menu-item" data-nav="storageview"><b>Storage</b><span>Space used on this iPad</span></button>
-          <button class="menu-item" id="cg-lock"><b>Lock device to this app</b><span>Stop her from wandering out</span></button>
+          <button class="menu-item menu-featured" data-nav="today"><b>${L('sun')}Today</b><span>Backup health, recent words, and useful next actions</span></button>
+          <button class="menu-item" data-nav="addword"><b>${L('circle-plus')}Add a word</b><span>New word with photo and speech</span></button>
+          <button class="menu-item" data-nav="managewords"><b>${L('list')}Words &amp; groups</b><span>Edit, move, or remove words</span></button>
+          <button class="menu-item" data-nav="managepeople"><b>${L('users')}People</b><span>Add family photos and names</span></button>
+          <button class="menu-item" data-nav="settingsview"><b>${L('settings')}Settings</b><span>Talk access, voice, motion, layout</span></button>
+          <button class="menu-item" data-nav="visualsceneedit"><b>${L('image')}Visual Routine</b><span>Create one family-photo communication scene</span></button>
+          <button class="menu-item" data-nav="backup"><b>${L('cloud-upload')}Back up</b><span>Save a copy off this iPad</span></button>
+          <button class="menu-item" data-nav="restore"><b>${L('download')}Restore</b><span>Bring data back from a backup</span></button>
+          <button class="menu-item" data-nav="recover"><b>${L('undo-2')}Recover deleted</b><span>Bring back items removed in the app</span></button>
+          <button class="menu-item" data-nav="progress"><b>${L('chart-line')}Progress</b><span>Words used most, gently tracked</span></button>
+          <button class="menu-item" data-nav="langwords"><b>${L('languages')}Translate &amp; record</b><span>Add another language, word by word</span></button>
+          <button class="menu-item" data-nav="devicecheck"><b>${L('clipboard-check')}Device check</b><span>Make sure everything works</span></button>
+          <button class="menu-item" data-nav="storageview"><b>${L('hard-drive')}Storage</b><span>Space used on this iPad</span></button>
+          <button class="menu-item" id="cg-lock"><b>${L('lock')}Lock device to this app</b><span>Keep the device inside Nuran</span></button>
+          <button class="menu-item" data-nav="welcome"><b>${L('wand-sparkles')}Setup wizard</b><span>Motion, celebrations, and voice, with demos</span></button>
         </div>
       </div>`);
     bindNav();
@@ -1016,6 +1394,157 @@
       <p><b>iPad / iPhone (Guided Access):</b> Settings &#8594; Accessibility &#8594; Guided Access &#8594; turn on and set a passcode. Then open Nuran and triple-click the side (or home) button to lock in. Triple-click and enter the passcode to leave.</p>
       <p><b>Android (App pinning):</b> Settings &#8594; Security &#8594; App pinning &#8594; turn on. Open Nuran, open Recents, tap the app icon, choose Pin.</p>
       <div class="actions"><button id="m-ok2" class="btn-primary">Got it</button></div>`) || ($('#m-ok2').onclick = closeModal);
+  };
+
+  /* ---------- Caregiver Today: health and next actions, not analytics ---------- */
+
+  screens.today = async function () {
+    await loadSettings();
+    const [history, words, people, scenes, progress] = await Promise.all([
+      DB.all('history'), DB.allActive('vocabulary'), DB.allActive('people'),
+      DB.allActive('visualScenes'), DB.progressEvents({ limit: 500 }),
+    ]);
+    const recentCutoff = Date.now() - 14 * 24 * 3600 * 1000;
+    const counts = new Map();
+    history.filter(h => h.ts >= recentCutoff).forEach(h => {
+      const key = h.wordId || h.label;
+      if (key) counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    const recent = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([key]) => {
+      const word = words.find(w => w.id === key);
+      return word ? word.label : (history.find(h => (h.wordId || h.label) === key) || {}).label;
+    }).filter(Boolean);
+    const customWords = words.filter(w => w.custom);
+    const missingVoice = customWords.filter(w => !(w.audioBlob instanceof Blob)).length;
+    const lastBackup = settings.lastBackupAt ? new Date(settings.lastBackupAt) : null;
+    const backupDue = !lastBackup || (Date.now() - lastBackup.getTime()) > (Number(settings.backupReminderDays) || 7) * 86400000;
+
+    screen(`${topbar('Today', 'caregiver')}
+      <div class="screen today-grid">
+        <section class="today-card ${backupDue ? 'needs-action' : ''}">
+          <h2>${L(backupDue ? 'triangle-alert' : 'shield-check')} Backup</h2>
+          <p>${lastBackup ? `Last saved ${lastBackup.toLocaleDateString()} at ${lastBackup.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}.` : 'No off-device backup has been made yet.'}</p>
+          <button class="${backupDue ? 'btn-primary' : ''}" data-nav="backup">${backupDue ? 'Back up now' : 'View backup'}</button>
+        </section>
+        <section class="today-card">
+          <h2>${L('message-circle')} Words heard recently</h2>
+          <p>${recent.length ? recent.map(esc).join(' · ') : 'Use Talk normally and recent words will appear here.'}</p>
+          <button data-nav="progress">Open Progress</button>
+        </section>
+        <section class="today-card">
+          <h2>${L('mic')} Personal voices</h2>
+          <p>${customWords.length ? `${customWords.length - missingVoice} of ${customWords.length} custom words have a family recording.` : 'Add the first personal word and family recording.'}</p>
+          <button data-nav="${customWords.length && missingVoice ? 'managewords' : 'addword'}">${customWords.length && missingVoice ? 'Open words &amp; groups' : 'Add a word'}</button>
+        </section>
+        <section class="today-card">
+          <h2>${L('image')} Visual Routine trial</h2>
+          <p>${scenes.length ? `“${esc(scenes[0].title)}” is ready in Talk.` : 'Create one photo scene with up to four familiar words.'}</p>
+          <button class="${scenes.length ? '' : 'btn-primary'}" data-nav="${scenes.length ? 'visualscene' : 'visualsceneedit'}">${scenes.length ? 'Open scene' : 'Create the scene'}</button>
+        </section>
+        <section class="today-card today-wide">
+          <h2>${L('sprout')} Learning</h2>
+          <p>${progress.length ? `${progress.length} learning moments are safely stored in the current progress window.` : 'No learning moments recorded yet. Start with one short, familiar game.'}</p>
+          <div class="today-actions"><button data-nav="learn">Open Learn</button><button data-nav="settingsview">Review settings</button></div>
+        </section>
+      </div>`);
+    bindNav();
+  };
+
+  /* ---------- One-scene Visual Routine trial ---------- */
+
+  screens.visualsceneedit = async function () {
+    const existing = (await DB.allActive('visualScenes'))[0] || null;
+    const words = (await DB.allActive('vocabulary')).filter(w => !w.phrase)
+      .sort((a, b) => String(a.label).localeCompare(String(b.label)));
+    let imageDataURL = existing && existing.imageDataURL || null;
+    if (!imageDataURL && existing && existing.imageBlob instanceof Blob) {
+      imageDataURL = await blobToDataURL(existing.imageBlob);
+    }
+    const selected = existing && Array.isArray(existing.wordIds) ? existing.wordIds.slice(0, 4) :
+      ['seed-water', 'seed-bathroom', 'core-more', 'core-help'].filter(id => words.some(w => w.id === id));
+    for (const w of words) { // fill remaining slots without duplicating already-chosen words
+      if (selected.length >= 4) break;
+      if (!selected.includes(w.id)) selected.push(w.id);
+    }
+    const optionHTML = (chosen) => words.map(w => `<option value="${esc(w.id)}" ${w.id === chosen ? 'selected' : ''}>${esc(w.label)}</option>`).join('');
+    const preview = imageDataURL ? `<img class="scene-edit-preview" src="${esc(imageDataURL)}" alt="Current routine scene photo">` : '';
+
+    screen(`${topbar('Visual Routine trial', 'caregiver')}
+      <div class="screen"><div class="form scene-form">
+        <div class="notice">This trial creates one family-owned photo scene. It stays on this device and is included in backups.</div>
+        <label>Scene name
+          <input id="vs-title" maxlength="40" value="${esc(existing && existing.title || '')}" placeholder="For example: Breakfast">
+        </label>
+        <label>Family photo
+          <input id="vs-photo" type="file" accept="image/*">
+        </label>
+        <div id="vs-photo-status" class="hint">${imageDataURL ? 'A photo is ready. Choose another to replace it.' : 'Choose a photo of one familiar routine or place.'}</div>
+        ${preview}
+        <fieldset class="settings-section">
+          <legend>Four large communication areas</legend>
+          <div class="hint">Match each screen corner to a useful word. The first trial keeps positions fixed so they stay predictable.</div>
+          ${['Top left', 'Top right', 'Bottom left', 'Bottom right'].map((label, i) => `<label>${label}
+            <select class="vs-word" data-slot="${i}">${optionHTML(selected[i])}</select></label>`).join('')}
+        </fieldset>
+        <div class="row">
+          <button id="vs-save" class="btn-primary btn-big">Save visual routine</button>
+          ${existing ? '<button id="vs-remove" class="btn-danger">Remove scene</button>' : ''}
+        </div>
+        <div id="vs-msg"></div>
+      </div></div>`);
+    bindNav();
+    $('#vs-photo').onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        imageDataURL = await blobToDataURL(await fileToResizedBlob(file, 1200));
+        $('#vs-photo-status').textContent = 'Photo ready. It will be saved only when you tap Save.';
+      } catch (err) {
+        $('#vs-msg').innerHTML = '<div class="notice warn">That photo could not be prepared. Please choose another.</div>';
+      }
+    };
+    $('#vs-save').onclick = async () => {
+      const title = $('#vs-title').value.trim();
+      if (!title || !imageDataURL) {
+        $('#vs-msg').innerHTML = '<div class="notice warn">Add a scene name and family photo first.</div>';
+        return;
+      }
+      const wordIds = [...app().querySelectorAll('.vs-word')].map(s => s.value).filter(Boolean);
+      await DB.save('visualScenes', {
+        id: existing ? existing.id : 'visual-scene-primary', title, imageDataURL, wordIds,
+        deleted: false, trialVersion: 1,
+      });
+      go('visualscene');
+    };
+    if ($('#vs-remove')) $('#vs-remove').onclick = async () => {
+      const ok = await confirmModal('Remove this visual routine?', '<p>The scene will be hidden, not permanently erased. It can be recovered from Recover deleted.</p>', 'Remove');
+      if (ok) { await DB.softDelete('visualScenes', existing.id); go('today'); }
+    };
+  };
+
+  screens.visualscene = async function () {
+    const scene = (await DB.allActive('visualScenes'))[0];
+    if (!scene) { go('visualsceneedit'); return; }
+    const allWords = await DB.allActive('vocabulary');
+    const words = (scene.wordIds || []).map(id => allWords.find(w => w.id === id)).filter(Boolean).slice(0, 4);
+    const sceneSrc = scene.imageDataURL || (scene.imageBlob instanceof Blob ? trackURL(URL.createObjectURL(scene.imageBlob)) : '');
+    screen(`${topbar(scene.title, 'talk')}
+      <div class="screen visual-scene-screen">
+        <div class="visual-scene-frame">
+          <img src="${esc(sceneSrc)}" alt="${esc(scene.title)}">
+          <div class="visual-hotspots">
+            ${words.map((w, i) => `<button class="visual-hotspot slot-${i} tok-${esc(w.colorToken || 'neutral')}" data-scene-word="${esc(w.id)}">${esc(w.label)}</button>`).join('')}
+          </div>
+        </div>
+        <div class="hint" style="text-align:center">Tap a word to say it. Talk remains available above.</div>
+      </div>`);
+    bindNav();
+    app().querySelectorAll('[data-scene-word]').forEach(btn => {
+      btn.onclick = () => {
+        const word = allWords.find(w => w.id === btn.dataset.sceneWord);
+        if (word) speakAndFeedback(btn, word);
+      };
+    });
   };
 
   /* ---------- Add / edit word (spec 3.4) ---------- */
@@ -1355,9 +1884,35 @@
 
   screens.settingsview = async function () {
     await loadSettings();
+    const words = (await DB.allActive('vocabulary')).filter(w => !w.phrase)
+      .sort((a, b) => String(a.label).localeCompare(String(b.label)));
+    const dockIds = Array.isArray(settings.talkDockWordIds) ? settings.talkDockWordIds : [];
+    const wordOptions = (selected) => `<option value="">No quick word</option>${words.map(w =>
+      `<option value="${esc(w.id)}" ${w.id === selected ? 'selected' : ''}>${esc(w.label)}</option>`).join('')}`;
+    const voiceStyle = Math.abs(settings.speechRate - 0.45) < 0.01 && Math.abs(settings.voicePitch - 1.25) < 0.01 ? 'warm'
+      : Math.abs(settings.speechRate - 0.55) < 0.01 && Math.abs(settings.voicePitch - 1) < 0.01 ? 'clear'
+      : Math.abs(settings.speechRate - 0.5) < 0.01 && Math.abs(settings.voicePitch - 0.85) < 0.01 ? 'calm' : 'custom';
+    const rateChoices = [[0.4, 'Extra slow'], [0.45, 'Very slow (warm style)'], [0.5, 'Calm and slow'], [0.55, 'Slow (recommended)'], [0.8, 'Medium'], [1, 'Normal']];
+    const knownRate = rateChoices.some(([rate]) => Math.abs(settings.speechRate - rate) < 0.001);
+    const rateOptions = `${knownRate ? '' : `<option value="${settings.speechRate}" selected>Current custom speed (${settings.speechRate.toFixed(2)}×)</option>`}${rateChoices.map(([rate, label]) =>
+      `<option value="${rate}" ${Math.abs(settings.speechRate - rate) < 0.001 ? 'selected' : ''}>${label}</option>`).join('')}`;
+    const playActivities = window.NuranActivities.list({ family: 'play', context: { motionLevel: 'full' } });
     screen(`${topbar('Settings', 'caregiver')}
-      <div class="screen"><div class="form">
-        <div class="hint">Talk opens with the core words, and she can move between all groups herself using the symbol strip.</div>
+      <div class="screen"><div class="settings-layout">
+      <section class="settings-section">
+        <h2>${L('message-circle')} Talk &amp; access</h2>
+        <div class="hint">Talk opens with core words. Groups and quick controls keep stable positions.</div>
+        <label>Talk Anytime
+          <select id="s-talk-access">
+            <option value="button" ${settings.talkAccessMode === 'button' ? 'selected' : ''}>Persistent Talk button (default)</option>
+            <option value="dock" ${settings.talkAccessMode === 'dock' ? 'selected' : ''}>Custom dock — Talk plus up to 3 quick words</option>
+            <option value="off" ${settings.talkAccessMode === 'off' ? 'selected' : ''}>Off — no persistent Talk control</option>
+          </select>
+        </label>
+        <div id="s-dock-editor" class="dock-editor" ${settings.talkAccessMode === 'dock' ? '' : 'hidden'}>
+          <div class="hint">Talk always stays first. Choose up to three words; each keeps the same slot.</div>
+          ${[0, 1, 2].map(i => `<label>Quick word ${i + 1}<select class="s-dock-word">${wordOptions(dockIds[i])}</select></label>`).join('')}
+        </div>
         <label>Sentence bar
           <select id="s-sbar">
             <option value="on" ${settings.sentenceBar !== false ? 'selected' : ''}>Shown — tapped words build a sentence</option>
@@ -1370,23 +1925,75 @@
             <option value="on" ${settings.helpEnabled ? 'selected' : ''}>Shown — loud alarm to call a caregiver</option>
           </select>
         </label>
-        <label>Game celebration
-          <select id="s-cele">
-            ${[['star', 'Star'], ['rainbow', 'Rainbow'], ['balloons', 'Balloons'], ['check', 'Quiet check mark']].map(([v, n]) =>
-              `<option value="${v}" ${settings.celebration === v ? 'selected' : ''}>${n}</option>`).join('')}
+        <label>Keyboard (type to speak)
+          <select id="s-kb">
+            <option value="off" ${!settings.keyboard ? 'selected' : ''}>Hidden — until letters are useful</option>
+            <option value="on" ${settings.keyboard ? 'selected' : ''}>Shown in the Talk group strip</option>
           </select>
         </label>
-        <label>Celebration energy
-          <select id="s-celev">
-            <option value="quiet" ${settings.celebrationLevel === 'quiet' ? 'selected' : ''}>Quiet — small and brief</option>
-            <option value="cheerful" ${settings.celebrationLevel === 'cheerful' || !settings.celebrationLevel ? 'selected' : ''}>Cheerful — bigger, with a little melody</option>
-            <option value="festive" ${settings.celebrationLevel === 'festive' ? 'selected' : ''}>Festive — adds gentle floating stars (some movement)</option>
+        <label>Talk tiles
+          <select id="s-wordonly">
+            <option value="no" ${!settings.wordOnly ? 'selected' : ''}>Picture and word together</option>
+            <option value="yes" ${settings.wordOnly ? 'selected' : ''}>Word only (reading practice)</option>
           </select>
         </label>
+        <label>Buttons per Talk screen
+          <select id="s-density">
+            ${[4, 6, 9, 12].map(n => `<option value="${n}" ${Number(settings.density) === n ? 'selected' : ''}>${n}${n === 4 ? ' (recommended)' : ''}</option>`).join('')}
+          </select>
+        </label>
+      </section>
+
+      <section class="settings-section">
+        <h2>${L('volume-2')} Voice &amp; sound</h2>
+        <label>Speaking style
+          <select id="s-voice-style">
+            <option value="warm" ${voiceStyle === 'warm' ? 'selected' : ''}>Warm &amp; slow</option>
+            <option value="clear" ${voiceStyle === 'clear' ? 'selected' : ''}>Clear &amp; friendly</option>
+            <option value="calm" ${voiceStyle === 'calm' ? 'selected' : ''}>Calm &amp; steady</option>
+            <option value="custom" ${voiceStyle === 'custom' ? 'selected' : ''}>Custom speed and current pitch</option>
+          </select>
+        </label>
+        <div class="hint">These styles adjust the device voice's speed and pitch. A family recording still takes priority.</div>
+        <label>Speaking speed
+          <select id="s-rate">
+            ${rateOptions}
+          </select>
+        </label>
+        <div class="row"><button id="s-test">Hear a sample</button></div>
+        <label>Sound
+          <select id="s-sound">
+            <option value="on" ${settings.soundOn ? 'selected' : ''}>On</option>
+            <option value="off" ${!settings.soundOn ? 'selected' : ''}>Off (quiet mode)</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="settings-section">
+        <h2>${L('image')} Pictures &amp; language</h2>
         <label>Pictures on buttons
           <select id="s-pic">
-            <option value="photos" ${settings.pictureStyle !== 'symbols' ? 'selected' : ''}>Real photos when added (default)</option>
+            <option value="photos" ${settings.pictureStyle === 'photos' ? 'selected' : ''}>Real photos when added (default)</option>
             <option value="symbols" ${settings.pictureStyle === 'symbols' ? 'selected' : ''}>Symbols first — for symbol-based teaching</option>
+            <option value="mulberry" ${settings.pictureStyle === 'mulberry' ? 'selected' : ''}>Mulberry symbols — professional AAC picture set</option>
+          </select>
+        </label>
+        <label>Learning language
+          <select id="s-clang">
+            <option value="en" ${settings.contentLang === 'en' ? 'selected' : ''}>English only</option>
+            <option value="ar" ${settings.contentLang === 'ar' ? 'selected' : ''}>Add Arabic — a tile appears in Learn</option>
+            <option value="so" ${settings.contentLang === 'so' ? 'selected' : ''}>Add Somali — a tile appears in Learn</option>
+          </select>
+        </label>
+        <div class="hint">Controls stay in English. Add translations and recordings from Translate &amp; record.</div>
+      </section>
+
+      <section class="settings-section">
+        <h2>${L('gamepad-2')} Learn &amp; Play</h2>
+        <label>After a Learn session
+          <select id="s-bridge">
+            <option value="on" ${settings.learnTalkBridge !== false ? 'selected' : ''}>Offer “Use it in Talk” (recommended)</option>
+            <option value="off" ${settings.learnTalkBridge === false ? 'selected' : ''}>Show only game choices</option>
           </select>
         </label>
         <label>Play time before a learning break
@@ -1398,67 +2005,80 @@
         <div class="hint">After this much play, a First/Then screen offers one short learning game with a visible countdown, then games come back. A gentle warning appears two minutes before.</div>
         <label>Games shown in Play
           <div class="row" style="display:flex;gap:14px;flex-wrap:wrap">
-            ${[['pop', 'Balloons'], ['memory', 'Memory'], ['paint', 'Paint'], ['piano', 'Music']].map(([id, n]) =>
+            ${playActivities.map(a =>
               `<label style="flex-direction:row;gap:6px;align-items:center;font-weight:400">
-                <input type="checkbox" class="s-game" data-g="${id}" style="width:auto;min-height:24px" ${(settings.gamesHidden || []).includes(id) ? '' : 'checked'}> ${n}</label>`).join('')}
+                <input type="checkbox" class="s-game" data-g="${a.id}" style="width:auto;min-height:24px" ${(settings.gamesHidden || []).includes(a.id) ? '' : 'checked'}> ${esc(a.label)}</label>`).join('')}
           </div>
         </label>
-        <label>Learning language (games only)
-          <select id="s-clang">
-            <option value="en" ${settings.contentLang !== 'ar' && settings.contentLang !== 'so' ? 'selected' : ''}>English only</option>
-            <option value="ar" ${settings.contentLang === 'ar' ? 'selected' : ''}>Add Arabic — a new tile appears in Learn</option>
-            <option value="so" ${settings.contentLang === 'so' ? 'selected' : ''}>Add Somali — a new tile appears in Learn</option>
+        <div class="hint">Moving games remain hidden when Motion is set to None, even when they are checked here.</div>
+      </section>
+
+      <section class="settings-section">
+        <h2>${L('sparkles')} Motion &amp; celebrations</h2>
+        <label>Motion
+          <select id="s-motion">
+            <option value="none" ${settings.motionLevel === 'none' ? 'selected' : ''}>None — static activities only</option>
+            <option value="gentle" ${settings.motionLevel === 'gentle' ? 'selected' : ''}>Gentle — slow movement</option>
+            <option value="full" ${settings.motionLevel === 'full' ? 'selected' : ''}>Full — all moving games</option>
           </select>
         </label>
-        <div class="hint">Talking and controls stay in English. Add the words themselves in Translate &amp; record.</div>
-        <label>Keyboard (type to speak)
-          <select id="s-kb">
-            <option value="off" ${!settings.keyboard ? 'selected' : ''}>Hidden — until she is ready for letters</option>
-            <option value="on" ${settings.keyboard ? 'selected' : ''}>Shown — a Keyboard button joins the group strip</option>
+        <label>Game celebration
+          <select id="s-cele">
+            ${[['star', 'Star'], ['rainbow', 'Rainbow'], ['balloons', 'Balloons'], ['check', 'Quiet check mark']].map(([v, n]) =>
+              `<option value="${v}" ${settings.celebration === v ? 'selected' : ''}>${n}</option>`).join('')}
           </select>
         </label>
-        <label>Show
-          <select id="s-wordonly">
-            <option value="no" ${!settings.wordOnly ? 'selected' : ''}>Picture and word together</option>
-            <option value="yes" ${settings.wordOnly ? 'selected' : ''}>Word only (for reading practice)</option>
+        <label>Celebration energy
+          <select id="s-celev">
+            <option value="quiet" ${settings.celebrationLevel === 'quiet' ? 'selected' : ''}>Quiet — small and brief</option>
+            <option value="cheerful" ${settings.celebrationLevel === 'cheerful' ? 'selected' : ''}>Cheerful — bigger, with a melody</option>
+            <option value="festive" ${settings.celebrationLevel === 'festive' ? 'selected' : ''}>Festive — floating stars when motion permits</option>
           </select>
         </label>
-        <label>Buttons per screen
-          <select id="s-density">
-            ${[4, 6, 9, 12].map(n => `<option value="${n}" ${Number(settings.density) === n ? 'selected' : ''}>${n}${n === 4 ? ' (recommended)' : ''}</option>`).join('')}
-          </select>
-        </label>
-        <label>Speaking speed
-          <select id="s-rate">
-            <option value="0.4" ${settings.speechRate <= 0.45 ? 'selected' : ''}>Very slow</option>
-            <option value="0.55" ${settings.speechRate > 0.45 && settings.speechRate <= 0.65 ? 'selected' : ''}>Slow (recommended)</option>
-            <option value="0.8" ${settings.speechRate > 0.65 && settings.speechRate <= 0.9 ? 'selected' : ''}>Medium</option>
-            <option value="1" ${settings.speechRate > 0.9 ? 'selected' : ''}>Normal</option>
-          </select>
-        </label>
-        <div class="row"><button id="s-test">Hear a sample</button></div>
-        <label>Sound
-          <select id="s-sound">
-            <option value="on" ${settings.soundOn ? 'selected' : ''}>On</option>
-            <option value="off" ${!settings.soundOn ? 'selected' : ''}>Off (quiet mode)</option>
-          </select>
-        </label>
+      </section>
+
+      <section class="settings-section">
+        <h2>${L('database')} Data reminders</h2>
         <label>Backup reminder
           <select id="s-remind">
             ${[3, 7, 14, 30].map(n => `<option value="${n}" ${Number(settings.backupReminderDays) === n ? 'selected' : ''}>Every ${n} days</option>`).join('')}
           </select>
         </label>
-        <div class="hint">Changes save immediately.</div>
+      </section>
+      <div class="hint">Changes save immediately. Nothing is uploaded.</div>
       </div></div>`);
     bindNav();
+    const dockEditor = $('#s-dock-editor');
+    $('#s-talk-access').onchange = async e => {
+      await setSetting('talkAccessMode', e.target.value);
+      dockEditor.hidden = e.target.value !== 'dock';
+    };
+    app().querySelectorAll('.s-dock-word').forEach(sel => {
+      let previousValue = sel.value;
+      sel.onchange = () => {
+        const others = [...app().querySelectorAll('.s-dock-word')].filter(s => s !== sel).map(s => s.value);
+        if (sel.value && others.includes(sel.value)) {
+          // Refuse the attempted duplicate and keep both the visible and persisted
+          // slot assignments exactly as they were.
+          sel.value = previousValue;
+          toast('That word is already in the dock.');
+          return;
+        }
+        previousValue = sel.value;
+        const ids = [...app().querySelectorAll('.s-dock-word')].map(s => s.value).filter(Boolean);
+        setSetting('talkDockWordIds', ids.slice(0, 3));
+      };
+    });
     $('#s-sbar').onchange = e => { setSetting('sentenceBar', e.target.value === 'on'); if (e.target.value === 'off') sentence = []; };
     $('#s-kb').onchange = e => setSetting('keyboard', e.target.value === 'on');
     $('#s-help').onchange = e => setSetting('helpEnabled', e.target.value === 'on');
     $('#s-cele').onchange = e => setSetting('celebration', e.target.value);
     $('#s-celev').onchange = e => setSetting('celebrationLevel', e.target.value);
+    $('#s-motion').onchange = e => setSetting('motionLevel', e.target.value);
     $('#s-pic').onchange = e => setSetting('pictureStyle', e.target.value);
     $('#s-nudge').onchange = e => { setSetting('playNudge', e.target.value); playSec = 0; nudgeWarned = false; };
     $('#s-clang').onchange = e => setSetting('contentLang', e.target.value);
+    $('#s-bridge').onchange = e => setSetting('learnTalkBridge', e.target.value === 'on');
     app().querySelectorAll('.s-game').forEach(cb => {
       cb.onchange = () => {
         const hidden = (settings.gamesHidden || []).filter(g => g !== cb.dataset.g);
@@ -1468,9 +2088,22 @@
     });
     $('#s-wordonly').onchange = e => setSetting('wordOnly', e.target.value === 'yes');
     $('#s-density').onchange = e => setSetting('density', Number(e.target.value));
-    $('#s-rate').onchange = e => setSetting('speechRate', Number(e.target.value));
+    $('#s-rate').onchange = async e => {
+      await setSetting('speechRate', Number(e.target.value));
+      $('#s-voice-style').value = 'custom';
+    };
     $('#s-sound').onchange = e => setSetting('soundOn', e.target.value === 'on');
     $('#s-remind').onchange = e => setSetting('backupReminderDays', Number(e.target.value));
+    $('#s-voice-style').onchange = async e => {
+      const preset = {
+        warm: [0.45, 1.25], clear: [0.55, 1.0], calm: [0.5, 0.85],
+      }[e.target.value];
+      if (!preset) return;
+      await setSetting('speechRate', preset[0]);
+      await setSetting('voicePitch', preset[1]);
+      window.NuranVoice = { pitch: preset[1] };
+      $('#s-rate').value = String(preset[0]);
+    };
     $('#s-test').onclick = () => {
       Speech.prime();
       Speech.speakItem({ label: 'I want more water, please' }, { rate: Number($('#s-rate').value), soundOn: true });
@@ -1499,7 +2132,9 @@
         const stamp = new Date().toISOString().slice(0, 10);
         const file = new File([json], `nuran-backup-${stamp}.json`, { type: 'application/json' });
         let shared = false;
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { shared = await window.NuranPlatform.shareBackup(json, file.name); }
+        catch (e) { DB.logError('native share failed: ' + e.message); }
+        if (!shared && navigator.canShare && navigator.canShare({ files: [file] })) {
           try { await navigator.share({ files: [file], title: 'Nuran backup' }); shared = true; }
           catch (e) { if (e && e.name === 'AbortError') { $('#b-msg').innerHTML = ''; return; } }
         }
@@ -1546,7 +2181,7 @@
         const obj = DB.parseBackup(text);
         const pv = DB.backupPreview(obj);
         $('#r-preview').innerHTML = `<div class="notice">This backup is from <b>${esc(pv.exportedAt ? new Date(pv.exportedAt).toLocaleString() : 'unknown date')}</b>.
-          It holds <b>${pv.words}</b> words, <b>${pv.categories}</b> groups, and <b>${pv.people}</b> people.
+          It holds <b>${pv.words}</b> words, <b>${pv.categories}</b> groups, <b>${pv.people}</b> people${pv.scenes ? `, and <b>${pv.scenes}</b> visual routine` : ''}.
           <div style="margin-top:10px"><button id="r-go" class="btn-primary btn-big">Restore from this file</button></div></div>`;
         $('#r-go').onclick = async () => {
           const ok = await confirmModal('Restore now?', '<p>The app will be replaced with this backup. A safety copy of the current data is kept first.</p>', 'Restore');
@@ -1578,8 +2213,8 @@
   /* ---------- Recover deleted (spec 2.3.1) ---------- */
 
   screens.recover = async function () {
-    const [words, cats, people] = await Promise.all([
-      DB.allDeleted('vocabulary'), DB.allDeleted('categories'), DB.allDeleted('people'),
+    const [words, cats, people, scenes] = await Promise.all([
+      DB.allDeleted('vocabulary'), DB.allDeleted('categories'), DB.allDeleted('people'), DB.allDeleted('visualScenes'),
     ]);
     const row = (store, r, label) => `<div class="list-row">
       <div class="grow"><b>${esc(label)}</b> <span class="hint">removed ${r.deletedAt ? new Date(r.deletedAt).toLocaleDateString() : ''}</span></div>
@@ -1592,7 +2227,8 @@
           ${words.map(w => row('vocabulary', w, w.label)).join('')}
           ${cats.map(c => row('categories', c, c.name + ' (group)')).join('')}
           ${people.map(p => row('people', p, p.name + ' (person)')).join('')}
-          ${(!words.length && !cats.length && !people.length) ? '<div class="notice">Nothing has been removed. All good.</div>' : ''}
+          ${scenes.map(s => row('visualScenes', s, s.title + ' (visual routine)')).join('')}
+          ${(!words.length && !cats.length && !people.length && !scenes.length) ? '<div class="notice">Nothing has been removed. All good.</div>' : ''}
         </div>
       </div>`);
     bindNav();
@@ -1616,7 +2252,7 @@
     const recent = words.filter(w => w.custom).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 8);
     screen(`${topbar('Progress', 'caregiver')}
       <div class="screen">
-        <div class="notice">This stays on the iPad only. It is a gentle picture of what she reaches for, not a report card.</div>
+        <div class="notice">This stays on the iPad only. It is a gentle picture of what your child reaches for, not a report card.</div>
         <h3>Words used most</h3>
         <div class="list-rows">
           ${top.map(([label, n]) => `<div class="list-row"><div class="grow"><b>${esc(label)}</b></div><span class="hint">${n} taps</span></div>`).join('') ||
@@ -1743,7 +2379,7 @@
 
   async function startApp() {
     await loadSettings();
-    go('home');
+    go(settings.firstRunDone ? 'home' : 'welcome');
   }
 
   async function init() {
@@ -1770,7 +2406,7 @@
       DB.requestPersistence();          // spec 2.3.3
       DB.startSnapshotTimer();          // spec 2.3.2
       setInterval(nudgeTick, 15000);    // play-time learning break (v2.2)
-      if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      if (window.NuranPlatform.canRegisterServiceWorker()) {
         navigator.serviceWorker.register('sw.js').catch(e => DB.logError('sw register failed: ' + e.message));
       }
       await startApp();
