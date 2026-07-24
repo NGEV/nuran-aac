@@ -38,3 +38,28 @@ test('language speech uses a matching installed voice instead of the English pre
   await Speech.speakItem({ label: 'salaan', lang: 'so' }, { soundOn: true, voiceURI: 'voice-basic' });
   assert.equal(spoken.at(-1).voice.voiceURI, 'voice-so');
 });
+
+test('the displayed pronoun I sends pronunciation text to device speech', async () => {
+  await Speech.speakItem(
+    { label: 'I', symbolKey: 'i', speakAs: 'eye' },
+    { soundOn: true, voiceURI: 'voice-basic' }
+  );
+  assert.equal(spoken.at(-1).text, 'eye');
+});
+
+test('a caregiver recording still takes priority over the I synthesis override', async () => {
+  const before = spoken.length;
+  const originalPlayBlob = Speech.playBlob;
+  let played = 0;
+  Speech.playBlob = async () => { played += 1; return true; };
+  try {
+    assert.equal(await Speech.speakItem(
+      { label: 'I', symbolKey: 'i', speakAs: 'eye', audioBlob: new Blob(['family voice']) },
+      { soundOn: true, voiceURI: 'voice-basic' }
+    ), true);
+  } finally {
+    Speech.playBlob = originalPlayBlob;
+  }
+  assert.equal(played, 1);
+  assert.equal(spoken.length, before);
+});

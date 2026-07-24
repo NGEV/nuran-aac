@@ -1,5 +1,9 @@
 # Nuran — Talk & Learn
 
+Current product version: **3.1.1**. Nuran uses
+[Semantic Versioning](VERSIONING.md); notable changes are recorded in
+[CHANGELOG.md](CHANGELOG.md).
+
 Nuran is a free, private communication and early-literacy app for minimally verbal children. Once
 installed, it runs offline, has no account, ads, analytics, or tracking, and keeps child data on the
 device unless a caregiver deliberately exports a backup.

@@ -81,6 +81,14 @@ activities select a matching installed language voice instead of forcing the sav
 Speaking styles remain rate/pitch adjustments to the selected voice, not downloaded voice models.
 A muted priming utterance handles iOS first-gesture behavior.
 
+Display text and speech text are separate data fields. The English pronoun tile remains visibly
+`I`, while its `speakAs` value is `eye`: isolated `I` and lowercase `i` were both observed to make
+some Apple voices announce “capital I.” `Seed.ensureEssentials()` migrates either ineffective value
+to `eye` without overwriting a different custom pronunciation. Caregiver recordings still take
+priority over this synthesis-only override. Any future pronunciation exception must preserve the
+visible label, be idempotently migrated for existing records, and have a device-speech regression
+test.
+
 `core/symbol-registry.js` is the only visual policy. It uses a caregiver photo when present, then a
 reviewed source-recorded real photograph when preferred, then the exact curated offline ARASAAC
 pictogram. `nuran-real-photos.js` contains only bounded offline photo references; `nuran-arasaac.js`
@@ -119,11 +127,14 @@ above and be reviewed at 1280×720 and 768×1024.
 
 ## Offline shell
 
-`sw.js` (`nuran-v25`) precaches 152 verified runtime assets, including the offline real-photo and
+`version.js` is the authoritative product version. `sw.js` derives its immutable cache name from
+that value (`nuran-3.1.1`) and precaches 153 verified runtime assets, including the offline real-photo and
 120-pictogram ARASAAC packs, registries, and both credit notices.
 Navigation failures may fall back to
 `index.html`; missing scripts, images, or data do not receive HTML as a false success. Only
-successful network responses are cached. Bump `CACHE_VERSION` for every shipped runtime change.
+successful network responses are cached. Every shipped runtime change receives a new SemVer
+release; `npm run verify:version` rejects drift between runtime, package, cache, and changelog.
+See `VERSIONING.md`.
 
 ## Development and verification
 

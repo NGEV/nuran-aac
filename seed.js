@@ -103,10 +103,11 @@
           deleted: false, createdAt: now, updatedAt: now,
         });
       }
-      // Migration: fix the "Capital I" speech quirk on installs seeded before speakAs existed.
+      // Migration: isolated "I"/"i" can be announced as "capital I" by Apple voices.
+      // "eye" is pronunciation text only; the visible AAC label remains the proper "I".
       const iWord = await DB.get('vocabulary', 'core-i');
-      if (iWord && !iWord.speakAs) {
-        iWord.speakAs = 'i';
+      if (iWord && (!iWord.speakAs || String(iWord.speakAs).trim().toLowerCase() === 'i')) {
+        iWord.speakAs = 'eye';
         await DB.put('vocabulary', iWord);
       }
       // Migration: "hello" becomes a core word (the home tile it lived on is now Learn).
@@ -167,9 +168,9 @@
           imageBlob: null, audioBlob: null,
           deleted: false, createdAt: now, updatedAt: now,
         };
-        // A single capital "I" makes some voices announce "Capital I".
-        // Speak it as lowercase (sounds identical) while displaying the proper capital.
-        if (label === 'I') rec.speakAs = 'i';
+        // A single-letter utterance can make Apple voices announce "Capital I".
+        // Use pronunciation text while displaying the proper capitalized pronoun.
+        if (label === 'I') rec.speakAs = 'eye';
         await DB.put('vocabulary', rec);
       }
       let sentenceOrder = 0;

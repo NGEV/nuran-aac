@@ -2053,6 +2053,7 @@
 
   screens.settingsview = async function () {
     await loadSettings();
+    const productVersion = globalThis.NuranVersion?.version || 'development';
     const words = (await DB.allActive('vocabulary')).filter(w => !w.phrase)
       .sort((a, b) => String(a.label).localeCompare(String(b.label)));
     const dockIds = Array.isArray(settings.talkDockWordIds) ? settings.talkDockWordIds : [];
@@ -2228,7 +2229,7 @@
           </select>
         </label>
       </section>
-      <div class="hint">Changes save immediately. Nothing is uploaded.</div>
+      <div class="hint">Changes save immediately. Nothing is uploaded. Nuran version ${esc(productVersion)}.</div>
       </div></div>`);
     bindNav();
     bindDeviceVoiceSelect($('#s-device-voice'), false);

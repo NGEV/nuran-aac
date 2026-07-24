@@ -1,6 +1,6 @@
 {
   "name": "nuran-aac",
-  "version": "3.1.0-local",
+  "version": "3.1.1",
   "private": true,
   "type": "module",
   "description": "Nuran AAC PWA — runtime dependency-free; development tools are local only",
@@ -10,8 +10,9 @@
     "test:e2e:runner": "playwright test",
     "verify:offline": "node scripts/verify-offline.mjs",
     "sync:ios": "node scripts/sync-ios.mjs",
+    "verify:version": "node scripts/verify-version.mjs",
     "verify:assets": "node scripts/verify-assets.mjs",
-    "verify": "npm run verify:assets && npm test",
+    "verify": "npm run verify:version && npm run verify:assets && npm test",
     "verify:all": "npm run verify && npm run verify:offline && npm run test:e2e"
   },
   "devDependencies": {

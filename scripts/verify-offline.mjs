@@ -54,7 +54,7 @@ try {
 
   const cacheEvidence = await page.evaluate(async () => {
     const names = await caches.keys();
-    const cache = await caches.open('nuran-v25');
+    const cache = await caches.open('nuran-3.1.1');
     const keys = await cache.keys();
     return {
       names,
@@ -64,10 +64,10 @@ try {
       hasRegistry: !!(await cache.match('./nuran-arasaac.js')),
     };
   });
-  assert.deepEqual(cacheEvidence.names, ['nuran-v25']);
-  // The verifier reports 152 unique files because './' and './index.html' are
+  assert.deepEqual(cacheEvidence.names, ['nuran-3.1.1']);
+  // The verifier reports 153 unique files because './' and './index.html' are
   // the same file; Cache Storage correctly keeps both request URLs.
-  assert.equal(cacheEvidence.count, 153);
+  assert.equal(cacheEvidence.count, 154);
   assert.equal(cacheEvidence.hasHelp, true);
   assert.equal(cacheEvidence.hasManual, true);
   assert.equal(cacheEvidence.hasRegistry, true);
@@ -85,7 +85,7 @@ try {
   assert.equal(offlineAsset.ok, true);
   assert.match(offlineAsset.type, /image\/png/);
   assert.ok(offlineAsset.bytes > 1000);
-  console.log(`PASS offline/PWA: nuran-v25 controls ${cacheEvidence.count} cached requests (152 unique files); help picture served offline (${offlineAsset.bytes} bytes).`);
+  console.log(`PASS offline/PWA: nuran-3.1.1 controls ${cacheEvidence.count} cached requests (153 unique files); help picture served offline (${offlineAsset.bytes} bytes).`);
 } finally {
   await context.close();
   await browser.close();

@@ -203,6 +203,7 @@ try {
       await page.getByRole('heading', { name: /Talk & access/ }).waitFor();
       await page.getByRole('heading', { name: /Motion & celebrations/ }).waitFor();
       await page.getByText(/Default order:/i).waitFor();
+      await page.getByText('Nuran version 3.1.1.', { exact: false }).waitFor();
       assert.equal(await page.locator('#s-rail').inputValue(), 'on', 'Settings did not enable the Daily Language Rail by default');
       assert.equal(await page.locator('#s-device-voice option[value="auto"]').count(), 1, 'Automatic best device voice is missing');
       assert.equal(await page.locator('#s-picture-display').inputValue(), 'together',

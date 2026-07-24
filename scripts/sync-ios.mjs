@@ -25,6 +25,7 @@ const sharedFiles = [
   'speech.js',
   'styles.css',
   'visual-system.css',
+  'version.js',
   'sw.js',
 ];
 const sharedDirectories = ['arasaac', 'core', 'features', 'fonts', 'real-photos'];

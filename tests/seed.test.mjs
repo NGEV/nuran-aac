@@ -54,6 +54,9 @@ test('fresh starter data preserves Project Core 36 and includes the sentence con
   assert.deepEqual(sentenceWords.map(w => w.label), SENTENCE_CONTRACT);
   assert.equal(sentenceWords[0].id, 'core-is');
   assert.equal(sentenceWords[0].core, true);
+  const iWord = await DB.get('vocabulary', 'core-i');
+  assert.equal(iWord.label, 'I');
+  assert.equal(iWord.speakAs, 'eye');
 });
 
 test('existing installs gain missing sentence words without reviving deliberate deletions', async () => {
@@ -77,4 +80,23 @@ test('existing installs gain missing sentence words without reviving deliberate 
   assert.ok(await DB.get('vocabulary', 'core-are'));
   assert.ok(await DB.get('vocabulary', 'core-the'));
   assert.ok(await DB.get('vocabulary', 'core-and'));
+});
+
+test('existing installs replace the ineffective lowercase I pronunciation without overwriting a custom one', async () => {
+  clearStores();
+  const now = Date.now();
+  await DB.put('vocabulary', {
+    id: 'core-i', label: 'I', symbolKey: 'i', speakAs: 'i',
+    categoryId: 'cat-core', core: true, sortOrder: 3,
+    deleted: false, createdAt: now, updatedAt: now,
+  });
+
+  await Seed.ensureEssentials();
+  assert.equal((await DB.get('vocabulary', 'core-i')).speakAs, 'eye');
+
+  const customized = await DB.get('vocabulary', 'core-i');
+  customized.speakAs = 'I pronoun';
+  await DB.put('vocabulary', customized);
+  await Seed.ensureEssentials();
+  assert.equal((await DB.get('vocabulary', 'core-i')).speakAs, 'I pronoun');
 });

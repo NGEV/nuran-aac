@@ -1,16 +1,17 @@
 /* Nuran AAC — service worker.
    Cache-first app shell so everything opens with no connection (spec 2.4).
-   Bump CACHE_VERSION when shipping changes. */
+   The product release in version.js also identifies the immutable app-shell cache. */
 
-importScripts('./nuran-arasaac.js');
+importScripts('./version.js', './nuran-arasaac.js');
 
-const CACHE_VERSION = 'nuran-v25';
+const CACHE_VERSION = `nuran-${self.NuranVersion.version}`;
 const ARASAAC_ASSETS = Object.values(self.NuranArasaac.assets).map(path => `./${path}`);
 const SHELL = [
   './',
   './index.html',
   './styles.css',
   './visual-system.css',
+  './version.js',
   './nuran-real-photos.js',
   './nuran-arasaac.js',
   './real-photos/apple.png',
