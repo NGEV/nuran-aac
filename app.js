@@ -196,6 +196,36 @@
     return window.NuranSymbols.html({ label, symbolKey }, { style: style || settings.pictureStyle });
   }
 
+  /* ---------- Sprout: Nuran's decorative companion.
+     Purely ornamental brand character — never a vocabulary tile, never tied to
+     a symbol library, never used where it could be mistaken for a word the
+     child can select. Plant-based and abstract on purpose: no represented
+     person, so it carries no identity to get wrong (content-neutrality). Its
+     brighter app-chrome
+     palette, so it reads as "the app" rather than "a word." */
+  function mascot(mood, size) {
+    const ink = '#3a4658';
+    const st = `stroke="${ink}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"`;
+    const cheer = mood === 'cheer';
+    const arms = cheer
+      ? `<path d="M 26 60 Q 10 44 8 26" fill="none" ${st}/><path d="M 70 60 Q 86 44 88 26" fill="none" ${st}/>`
+      : `<path d="M 26 62 Q 14 58 10 46" fill="none" ${st}/><path d="M 70 62 Q 78 66 84 60" fill="none" ${st}/>`;
+    const sparkle = cheer
+      ? `<g stroke="#f6b832" stroke-width="5" stroke-linecap="round"><path d="M 14 14 L 14 22 M 10 18 L 18 18"/><path d="M 82 12 L 82 20 M 78 16 L 86 16"/></g>` : '';
+    return `<svg viewBox="0 0 96 96" width="${size || 96}" height="${size || 96}" role="img" aria-hidden="true">
+      <path d="M 48 90 Q 14 90 14 56 Q 14 24 48 20 Q 82 24 82 56 Q 82 90 48 90 Z" fill="#ffd873" ${st}/>
+      <path d="M 48 20 Q 46 6 34 2 Q 40 14 44 20 Z" fill="#4fae7a" ${st}/>
+      <path d="M 48 20 Q 50 4 64 2 Q 56 12 52 20 Z" fill="#6ecb92" ${st}/>
+      ${arms}
+      <circle cx="34" cy="54" r="4.5" fill="${ink}"/>
+      <circle cx="62" cy="54" r="4.5" fill="${ink}"/>
+      <circle cx="26" cy="64" r="6" fill="#ff9d9d" opacity="0.55"/>
+      <circle cx="70" cy="64" r="6" fill="#ff9d9d" opacity="0.55"/>
+      <path d="M 36 68 Q 48 ${cheer ? 80 : 76} 60 68" fill="none" ${st}/>
+      ${sparkle}
+    </svg>`;
+  }
+
   async function speakAndFeedback(btn, item) {
     Speech.prime();
     btn.classList.add('speaking');
@@ -453,13 +483,17 @@
       </button>` : ''}
     </div>`;
 
-    /* Pinned row: caregiver-chosen words (Bathroom by default) visible on every Talk page */
-    const pinnedIds = Array.isArray(settings.pinned) ? settings.pinned : [];
-    const pinnedWords = pinnedIds.map(id => allWords.find(w => w.id === id)).filter(Boolean);
-    const pinnedRow = pinnedWords.length ? `<div class="pinned-row">
-      ${pinnedWords.map(w => `<button class="pin-tile tok-${esc(w.colorToken || 'describe')}" data-pword="${esc(w.id)}">
+    /* Daily Language Rail: caregiver-owned words in one stable order on every
+       Talk page. It is deliberately not sorted from recent use or predictions. */
+    const railIds = Array.isArray(settings.dailyLanguageWordIds) ? settings.dailyLanguageWordIds
+      : (Array.isArray(settings.pinned) ? settings.pinned : []);
+    const railWords = settings.dailyLanguageRail !== false
+      ? railIds.map(id => allWords.find(w => w.id === id)).filter(Boolean) : [];
+    const railRow = railWords.length ? `<section class="daily-language-rail" aria-label="Daily language rail">
+      <div class="rail-title">Words ready anytime</div><div class="pinned-row">
+      ${railWords.map(w => `<button class="pin-tile tok-${esc(w.colorToken || 'describe')}" data-railword="${esc(w.id)}">
         <span class="psym">${symbolHTML(w)}</span><span class="plbl">${esc(w.label)}</span></button>`).join('')}
-    </div>` : '';
+    </div></section>` : '';
 
     screen(`${topbar(cat.name || 'Talk', null)}
       <div class="screen">
@@ -467,7 +501,7 @@
         ${strip}
         ${(!allWords.some(w => w.categoryId === 'cat-phrases') && settings.sentenceBar !== false)
           ? '<div class="hint">Tip: hold the Save button to turn a sentence into a button of its own.</div>' : ''}
-        ${pinnedRow}
+        ${railRow}
         <div class="tile-grid ${dClass}">
           ${slice.map(w => `
             <button class="tile ${wordOnly ? 'word-only' : ''} ${w.id === params.highlightId ? 'bridge-highlight' : ''} tok-${esc(w.colorToken || cat.colorToken)}" data-word="${esc(w.id)}">
@@ -490,9 +524,9 @@
         : go('talk', { categoryId: b.dataset.goto });
     });
     bindSpeakBar();
-    app().querySelectorAll('[data-pword]').forEach(b => {
+    app().querySelectorAll('[data-railword]').forEach(b => {
       b.onclick = () => {
-        const w = allWords.find(x => x.id === b.dataset.pword);
+        const w = allWords.find(x => x.id === b.dataset.railword);
         if (!w) return;
         speakAndFeedback(b, w);
         if (settings.sentenceBar !== false && sentence.length < SENTENCE_MAX) {
@@ -575,17 +609,66 @@
 
   /* ---------- Learn hub: three matching games, one familiar engine ---------- */
 
+  // Lifetime sticker count only ever grows: no goal, no streak, no reset, no
+  // comparison. A milestone is just a warmer line at a few friendly counts.
+  const STICKER_MILESTONES = [1, 5, 10, 25, 50, 100, 200, 500];
+  function stickerMessage(n) {
+    if (!n) return 'Play a game to start your sticker collection!';
+    if (STICKER_MILESTONES.includes(n)) return `Sprout is so proud — ${n} sticker${n === 1 ? '' : 's'} collected!`;
+    return `${n} stickers collected and counting!`;
+  }
+  function stickerRow(n) {
+    const shown = Math.min(n, 12);
+    let dots = '';
+    for (let i = 0; i < shown; i++) dots += '<span class="sticker-dot" aria-hidden="true"></span>';
+    const more = n > shown ? `<span class="sticker-more">+${n - shown}</span>` : '';
+    return `<div class="sticker-row">${dots}${more}</div>`;
+  }
+
   screens.learn = async function () {
     mg = null;
     const activities = window.NuranActivities.list({ family: 'learn', context: settings });
+    const stickers = settings.stickersEarned || 0;
+    const words = (await DB.allActive('vocabulary')).filter(w => !w.phrase && (window.NuranSymbols.has(w) || w.imageBlob instanceof Blob));
+    const events = await DB.progressEvents({ limit: 2000 });
+    const curriculum = window.NuranCurriculum;
+    const stage = curriculum ? curriculum.stageFor(events, settings).effective : 's2';
+    const todayIds = curriculum ? curriculum.mixSession(events, { stage, words, rounds: 8 }) : words.slice(0, 8).map(w => w.id);
+    const today = {
+      s0: { label: 'Explore together', detail: 'One friendly word at a time.', icon: '_learn', route: 'learngame', params: { mode: 'big', poolIds: todayIds } },
+      s1: { label: 'Match the same', detail: 'Find the picture that matches.', icon: '_match', route: 'learngame', params: { mode: 'pp', poolIds: todayIds } },
+      s2: { label: 'Find the word', detail: 'Listen, then choose the picture.', icon: '_ear', route: 'learngame', params: { mode: 'wp', poolIds: todayIds } },
+      s3: { label: 'Use words in Talk', detail: 'Try a word in the real Talk screen.', icon: '_talk', route: 'talk', params: { categoryId: 'cat-core' } },
+      s4a: { label: 'Read a word', detail: 'Match a word with its picture.', icon: '_abc', route: 'learngame', params: { mode: 'ww', poolIds: todayIds } },
+      s4b: { label: 'Build a message', detail: 'Choose words in Talk and say them together.', icon: '_talk', route: 'talk', params: { categoryId: 'cat-core' } },
+    }[stage] || { label: 'Find the word', detail: 'Listen, then choose the picture.', icon: '_ear', route: 'learngame', params: { mode: 'wp', poolIds: todayIds } };
     screen(`${topbar('Learn', null)}
-      <div class="screen">
+      <div class="screen learn-hub">
+        <div class="hub-hero">
+          <div class="hub-mascot">${mascot(stickers ? 'cheer' : 'idle', 108)}</div>
+          <div class="hub-hero-copy">
+            <div class="hub-hero-greet">Hi, I'm Sprout!</div>
+            <div class="hub-hero-sub">Pick a game and let's practice together.</div>
+          </div>
+        </div>
+        <section class="today-row" aria-label="Today’s gentle practice">
+          <div><div class="today-kicker">Today</div><b>${esc(today.label)}</b><span class="hint">${esc(today.detail)}</span></div>
+          <button class="today-start" id="learn-today"><span class="sym">${visualSymbol(today.label, today.icon)}</span><span>Start gently</span></button>
+        </section>
+        <div class="learn-all-title">All games</div>
         <div class="tile-grid d6">
           ${activities.map(a => `<button class="tile tok-${esc(a.token)}" data-activity="${esc(a.id)}">
             <span class="sym">${visualSymbol(a.label, a.symbolKey)}</span><span class="lbl">${esc(a.label)}</span></button>`).join('')}
           ${settings.contentLang && settings.contentLang !== 'en' ? `
           <button class="tile tok-people" data-langgame="${esc(settings.contentLang)}">
             <span class="sym">${visualSymbol('Talk', '_talk')}</span><span class="lbl">${settings.contentLang === 'ar' ? 'Arabic' : 'Somali'} words</span></button>` : ''}
+        </div>
+        <div class="learn-collection">
+          <div class="learn-collection-head">
+            <span class="learn-collection-title">Sprout's collection</span>
+            <span class="learn-collection-msg">${esc(stickerMessage(stickers))}</span>
+          </div>
+          ${stickerRow(stickers)}
         </div>
         <div class="hint" style="text-align:center">Games start easy and grow with your child. Wrong taps never scold — after two tries, the answer gently shows itself.</div>
       </div>`);
@@ -600,6 +683,7 @@
     });
     const lg = app().querySelector('[data-langgame]');
     if (lg) lg.onclick = () => { Speech.prime(); go('learngame', { mode: 'wp', lang: lg.dataset.langgame }); };
+    $('#learn-today').onclick = () => { Speech.prime(); go(today.route, today.params); };
   };
 
   /* ---------- Translate & record: caregiver builds another language, word by word.
@@ -673,10 +757,12 @@
   const LANG_NAMES = { ar: 'Arabic', so: 'Somali' };
 
   screens.learngame = async function (params) {
-    const mode = ['wp', 'ww', 'cc'].includes(params.mode) ? params.mode : 'wp';
+    const mode = ['big', 'pp', 'wp', 'ww', 'cc'].includes(params.mode) ? params.mode : 'wp';
     const lang = ['ar', 'so'].includes(params.lang) ? params.lang : null;
-    if (!mg || mg.mode !== mode || mg.lang !== lang) {
-      mg = { mode, lang, round: 1, total: breakActive ? 6 : 8, choices: 2, streak: 0, counts: {} };
+    const requestedPoolIds = Array.isArray(params.poolIds) ? params.poolIds.filter(id => typeof id === 'string').slice(0, 12) : [];
+    const sessionKey = requestedPoolIds.join('|');
+    if (!mg || mg.mode !== mode || mg.lang !== lang || (requestedPoolIds.length && mg.sessionKey !== sessionKey)) {
+      mg = { mode, lang, round: 1, total: breakActive ? 6 : 8, choices: mode === 'big' ? 1 : 2, streak: 0, counts: {}, poolIds: requestedPoolIds, sessionKey };
     }
     mg.misses = 0;
     const tLabel = (w) => (lang && w.translations && w.translations[lang] && w.translations[lang].label) ? w.translations[lang].label : w.label;
@@ -700,10 +786,16 @@
         bindNav();
         return;
       }
-      pool = words;
+      const preferred = (mg.poolIds || []).length ? words.filter(w => mg.poolIds.includes(w.id)) : [];
+      // A personalized set chooses its target first, but options remain broad
+      // enough for a genuine matching game when the set is still tiny.
+      if (preferred.length) {
+        target = preferred[Math.floor(Math.random() * preferred.length)];
+        pool = words.filter(w => w.id !== target.id);
+      } else pool = words;
     }
     pool = [...pool];
-    target = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
+    if (!target) target = pool.splice(Math.floor(Math.random() * pool.length), 1)[0];
     opts = [target];
     while (opts.length < mg.choices && pool.length) {
       opts.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
@@ -720,6 +812,8 @@
     };
     const promptHTML = mode === 'cc'
       ? `<span class="mg-find">Find:</span> <span class="mg-swatch mg-swatch-sm" style="background:${target.hex}"></span> <span class="mg-word">${esc(target.label)}</span>`
+      : mode === 'pp' ? `<span class="mg-find">Match:</span> <span class="mg-picture-prompt">${symbolHTML(target)}</span>`
+      : mode === 'big' ? `<span class="mg-find">Explore:</span> <span class="mg-word">${esc(tLabel(target))}</span>`
       : `<span class="mg-find">Find:</span> <span class="mg-word">${esc(tLabel(target))}</span>${lang ? ` <span class="hint">(${esc(target.label)})</span>` : ''}`;
 
     screen(`${topbar('Learn', 'learn')}
@@ -735,12 +829,13 @@
       { label: tLabel(target), speakAs: lang ? null : target.speakAs, audioBlob: tAudio ? tAudio(target) : target.audioBlob },
       { rate: settings.speechRate, soundOn: settings.soundOn, lang: lang ? LANG_TAGS[lang] : undefined });
     $('#mg-say').onclick = speakTarget;
-    speakTarget();
+    if (mode !== 'ww') speakTarget();
 
     app().querySelectorAll('[data-opt]').forEach(b => {
       b.onclick = () => {
         const right = b.dataset.opt === target.id;
-        DB.logProgress({ type: 'match-' + mode, wordId: target.id, word: target.label, correct: right, choices: opts.length, assisted: mg.misses >= 2 });
+        const progressType = mode === 'big' ? 'explore-big' : 'match-' + mode;
+        DB.logProgress({ type: progressType, wordId: target.id, word: target.label, correct: right, choices: opts.length, assisted: mg.misses >= 2 });
         if (!right) {
           mg.streak = 0;
           mg.misses++;
@@ -755,7 +850,7 @@
           return;
         }
         mg.streak++;
-        if (mg.streak % 3 === 0 && mg.choices < 4) mg.choices++;
+        if (mode !== 'big' && mg.streak % 3 === 0 && mg.choices < 4) mg.choices++;
         // Track per-session unassisted practice so the Talk bridge offers the
         // MOST-practiced word of the session, not merely the final round's word.
         if (mode !== 'cc' && mg.misses < 2) {
@@ -764,18 +859,21 @@
           mg.counts[target.id] = c;
         }
         const finished = mg.round >= mg.total;
+        setSetting('stickersEarned', (settings.stickersEarned || 0) + 1); // fire-and-forget; grows only, never lost
         showCelebration({ label: tLabel(target), audioBlob: tAudio ? tAudio(target) : null, lang: lang ? LANG_TAGS[lang] : undefined }, () => {
           if (finished) {
             const backToPlay = breakActive;
             const practiced = Object.values(mg.counts).sort((a, b) => b.n - a.n)[0] || null;
             const bridgeWord = settings.learnTalkBridge !== false && !backToPlay && !lang && mode !== 'cc'
               ? (practiced || { id: target.id, label: target.label, categoryId: target.categoryId }) : null;
+            const sessionPoolIds = mg.poolIds;
             mg = null;
             if (backToPlay) { breakActive = false; playSec = 0; nudgeWarned = false; }
             screen(`${topbar('Learn', 'learn')}
               <div class="screen" style="justify-content:center;align-items:center;gap:20px">
-                <span class="cs-done">${visualSymbol(settings.celebration, celeKey())}</span>
+                ${backToPlay ? `<span class="cs-done">${visualSymbol(settings.celebration, celeKey())}</span>` : `<div class="mascot-cheer">${mascot('cheer', 128)}</div>`}
                 <div class="cele-word">${backToPlay ? 'Games are back!' : 'All done!'}</div>
+                ${backToPlay ? '' : `<div class="cele-stickers">${esc(stickerMessage(settings.stickersEarned || 0))}</div>`}
                 <div class="row" style="display:flex;gap:14px">
                   ${backToPlay ? '<button class="btn-primary btn-big" data-nav="play">Back to games</button>' : `
                   ${bridgeWord ? `<button class="btn-primary btn-big" id="learn-use-talk">Use ${esc(bridgeWord.label)} in Talk</button>` : ''}
@@ -786,13 +884,13 @@
               </div>`);
             bindNav();
             const again = app().querySelector('[data-game-again]');
-            if (again) again.onclick = () => go('learngame', { mode, lang });
+            if (again) again.onclick = () => go('learngame', { mode, lang, poolIds: sessionPoolIds });
             if ($('#learn-use-talk')) $('#learn-use-talk').onclick = () => go('talk', {
               categoryId: bridgeWord.categoryId, highlightId: bridgeWord.id,
             });
           } else {
             mg.round++;
-            go('learngame', { mode, lang });
+            go('learngame', { mode, lang, poolIds: mg && mg.poolIds });
           }
         });
       };
@@ -800,9 +898,8 @@
   };
 
   /* ---------- Play: fun, non-educational games ----------
-     Caregivers can hide any game (Settings). A caregiver-set play limit
-     triggers a First/Then learning break with advance warning and a visible
-     countdown (Dettmer et al. 2000; visual-timer transition practice). */
+     Caregivers can hide any game. An optional time setting is a gentle
+     reminder only: Play stays available and a lesson is never an access toll. */
 
   const PLAY_SCREENS = ['play', 'paint', 'piano', 'pop', 'memory', 'floats', 'blocks'];
   let playSec = 0, nudgeWarned = false, breakActive = false;
@@ -823,11 +920,11 @@
     const limS = lim * 60;
     if (!nudgeWarned && playSec >= limS - 120) {
       nudgeWarned = true;
-      toast('Soon: a little learning, then games come back');
+      toast('Soon: a gentle learning reminder. Play stays open.');
     }
     if (playSec >= limS) {
-      playSec = 0; nudgeWarned = false; breakActive = true;
-      go('learnbreak');
+      playSec = 0; nudgeWarned = false;
+      toast('Gentle reminder: you can keep playing, or try a Learn game together.');
     }
   }
 
@@ -843,7 +940,14 @@
       : activity.icon === 'balloon-blue' ? balloonSVG('#7D9CB0')
       : visualSymbol(activity.label, activity.symbolKey);
     screen(`${topbar('Play', null)}
-      <div class="screen">
+      <div class="screen play-hub">
+        <div class="hub-hero">
+          <div class="hub-mascot">${mascot('idle', 108)}</div>
+          <div class="hub-hero-copy">
+            <div class="hub-hero-greet">Let's have some fun!</div>
+            <div class="hub-hero-sub">Free play — no scoring, no pressure, just play.</div>
+          </div>
+        </div>
         ${activities.length ? `<div class="tile-grid d6">
           ${activities.map(a => `<button class="tile tok-${esc(a.token)}" data-activity="${esc(a.id)}">
             <span class="sym">${iconFor(a)}</span><span class="lbl">${esc(a.label)}</span></button>`).join('')}
@@ -1053,29 +1157,22 @@
     });
   };
 
-  /* First/Then learning break with visible countdown (caregiver-configured). */
+  /* Optional transition prompt. It never blocks Play and remains available only
+     for an explicit future caregiver flow; automatic Play reminders stay in Play. */
   let lbTimer = null;
   screens.learnbreak = function () {
     if (lbTimer) clearInterval(lbTimer);
-    let secs = 5 * 60;
-    screen(`${topbar('Learning time', null)}
+    screen(`${topbar('A gentle choice', 'play')}
       <div class="screen" style="justify-content:center;align-items:center;gap:18px">
         <div class="ft-row">
-          <div class="ft-card"><span class="ft-tag">First</span>${visualSymbol('Learn', '_learn')}<span class="lbl">One quick game</span></div>
-          <div class="ft-card then"><span class="ft-tag">Then</span>${visualSymbol('Play', '_paint')}<span class="lbl">Games come back</span></div>
+          <div class="ft-card">${visualSymbol('Learn', '_learn')}<span class="lbl">Try one gentle game</span></div>
+          <div class="ft-card then">${visualSymbol('Play', '_paint')}<span class="lbl">Keep playing</span></div>
         </div>
-        <div class="cele-word" id="lb-timer">5:00</div>
-        <div class="hint">Games come back when the timer ends — or right after one quick learning game.</div>
-        <button class="btn-primary btn-big" id="lb-start">Start</button>
+        <div class="hint">Play is always open. Choose a short practice game only if it feels helpful right now.</div>
+        <div class="row" style="display:flex;gap:14px"><button class="btn-primary btn-big" id="lb-play">Keep playing</button><button class="btn-big" id="lb-start">Try a game</button></div>
       </div>`);
     bindNav();
-    lbTimer = setInterval(() => {
-      if (currentScreen !== 'learnbreak') { clearInterval(lbTimer); return; }
-      secs--;
-      const el = $('#lb-timer');
-      if (el) el.textContent = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
-      if (secs <= 0) { clearInterval(lbTimer); breakActive = false; go('play'); }
-    }, 1000);
+    $('#lb-play').onclick = () => { breakActive = false; go('play'); };
     $('#lb-start').onclick = () => { clearInterval(lbTimer); mg = null; go('learngame', { mode: 'wp' }); };
   };
 
@@ -1407,13 +1504,11 @@
 
   screens.wizpictures = function () {
     const choices = [
-      ['best', 'Best available', 'Family photos when added, then Mulberry, then the complete Nuran set'],
-      ['mulberry', 'Mulberry first', 'Use the professional AAC set wherever it has the concept'],
-      ['symbols', 'Original Nuran symbols', 'Use the complete calm line-art set throughout'],
+      ['best', 'Friendly Nuran pictures', 'Family photos when added, then warm Nuran Friends artwork. Every tile also keeps its written word.'],
     ];
     screen(`${topbar('Setup 2 of 4 — Pictures', null)}
       <div class="screen" style="max-width:760px;margin:0 auto">
-        <p>Pictures are always paired with words. Best available is recommended and never leaves a blank tile.</p>
+        <p>Pictures are always paired with words. Family photos take priority; Nuran Friends keeps every other tile warm and familiar.</p>
         <div class="wz-opts">
           ${choices.map(([value, name, description]) => `
             <button class="wz-card ${settings.pictureStyle === value ? 'current' : ''}" data-picture-style="${value}">
@@ -1522,7 +1617,9 @@
         </section>
         <section class="today-card today-learning today-wide">
           <h2>${L('sprout')} Learning</h2>
-          <p>${progress.length ? `${progress.length} learning moments are safely stored in the current progress window.` : 'No learning moments recorded yet. Start with one short, familiar game.'}</p>
+          <p>${progress.length
+            ? `${progress.length} learning moments are safely stored in the current progress window. Sprout and your child have collected ${settings.stickersEarned || 0} sticker${(settings.stickersEarned || 0) === 1 ? '' : 's'} together so far.`
+            : 'No learning moments recorded yet. Start with one short, familiar game.'}</p>
           <div class="today-actions"><button data-nav="learn">Open Learn</button><button data-nav="settingsview">Review settings</button></div>
         </section>
       </div>`);
@@ -1763,11 +1860,11 @@
     const allWords = await DB.allActive('vocabulary');
     const catName = (id) => { const c = cats.find(x => x.id === id); return c ? c.name : ''; };
     const rowHTML = (w, showGroup) => {
-      const isPinned = (settings.pinned || []).includes(w.id);
+      const isRailWord = (settings.dailyLanguageWordIds || []).includes(w.id);
       return `<div class="list-row">
         <span class="thumb">${symbolHTML(w)}</span>
-        <div class="grow"><b>${esc(w.label)}</b>${showGroup ? ` <span class="hint">in ${esc(catName(w.categoryId))}</span>` : ''}${w.core ? ' <span class="hint">(core word)</span>' : ''}${isPinned ? ' <span class="hint">📌 pinned</span>' : ''}</div>
-        <button data-pin="${esc(w.id)}">${isPinned ? 'Unpin' : 'Pin'}</button>
+        <div class="grow"><b>${esc(w.label)}</b>${showGroup ? ` <span class="hint">in ${esc(catName(w.categoryId))}</span>` : ''}${w.core ? ' <span class="hint">(core word)</span>' : ''}${isRailWord ? ' <span class="hint">in Daily Language Rail</span>' : ''}</div>
+        <button data-rail="${esc(w.id)}">${isRailWord ? 'Remove rail word' : 'Add to rail'}</button>
         <button data-edit="${esc(w.id)}">Edit</button>
         <button class="btn-danger" data-del="${esc(w.id)}">Remove</button>
       </div>`;
@@ -1804,11 +1901,13 @@
     $('#mw-list').addEventListener('click', async (e) => {
       const btn = e.target.closest('button');
       if (!btn) return;
-      if (btn.dataset.pin) {
-        const pins = Array.isArray(settings.pinned) ? [...settings.pinned] : [];
-        const i = pins.indexOf(btn.dataset.pin);
-        if (i >= 0) pins.splice(i, 1); else pins.push(btn.dataset.pin);
-        await setSetting('pinned', pins);
+      if (btn.dataset.rail) {
+        const rail = Array.isArray(settings.dailyLanguageWordIds) ? [...settings.dailyLanguageWordIds] : [];
+        const i = rail.indexOf(btn.dataset.rail);
+        if (i >= 0) rail.splice(i, 1);
+        else if (rail.length >= 12) { toast('The Daily Language Rail can hold up to 12 words.'); return; }
+        else rail.push(btn.dataset.rail);
+        await setSetting('dailyLanguageWordIds', rail);
         go('managewords', { categoryId: catId });
       } else if (btn.dataset.edit) {
         wordForm(await DB.get('vocabulary', btn.dataset.edit));
@@ -2033,6 +2132,14 @@
             ${[4, 6, 9, 12].map(n => `<option value="${n}" ${Number(settings.density) === n ? 'selected' : ''}>${n}${n === 4 ? ' (recommended)' : ''}</option>`).join('')}
           </select>
         </label>
+        <label>Daily Language Rail
+          <select id="s-rail">
+            <option value="on" ${settings.dailyLanguageRail !== false ? 'selected' : ''}>Shown — stable words on every Talk screen</option>
+            <option value="off" ${settings.dailyLanguageRail === false ? 'selected' : ''}>Hidden — no extra row in Talk</option>
+          </select>
+        </label>
+        <div class="hint">Choose and order up to 12 rail words in Words &amp; groups. Nuran never reorders them automatically.</div>
+        <button id="s-rail-words">Choose Daily Language Rail words</button>
       </section>
 
       <section class="settings-section settings-voice">
@@ -2066,13 +2173,7 @@
 
       <section class="settings-section settings-pictures">
         <h2>${L('image')} Pictures &amp; language</h2>
-        <label>Pictures on buttons
-          <select id="s-pic">
-            <option value="best" ${settings.pictureStyle === 'best' ? 'selected' : ''}>Best available — family photos, then Mulberry (default)</option>
-            <option value="mulberry" ${settings.pictureStyle === 'mulberry' ? 'selected' : ''}>Mulberry first — professional AAC picture set</option>
-            <option value="symbols" ${settings.pictureStyle === 'symbols' ? 'selected' : ''}>Original Nuran symbols — complete calm line-art set</option>
-          </select>
-        </label>
+        <div class="hint">Pictures use a single safe visual language: family photos when you add them, then friendly Nuran Friends artwork. Turn on Word only in Talk &amp; access for reading practice.</div>
         <label>Learning language
           <select id="s-clang">
             <option value="en" ${settings.contentLang === 'en' ? 'selected' : ''}>English only</option>
@@ -2091,13 +2192,13 @@
             <option value="off" ${settings.learnTalkBridge === false ? 'selected' : ''}>Show only game choices</option>
           </select>
         </label>
-        <label>Play time before a learning break
+        <label>Play transition reminder
           <select id="s-nudge">
-            ${[['off', 'Off — no limit'], ['15', '15 minutes'], ['20', '20 minutes'], ['30', '30 minutes (recommended)'], ['45', '45 minutes']].map(([v, n]) =>
+            ${[['off', 'Off — no reminder'], ['15', '15 minutes'], ['20', '20 minutes'], ['30', '30 minutes (recommended)'], ['45', '45 minutes']].map(([v, n]) =>
               `<option value="${v}" ${String(settings.playNudge) === v ? 'selected' : ''}>${n}</option>`).join('')}
           </select>
         </label>
-        <div class="hint">After this much play, a First/Then screen offers one short learning game with a visible countdown, then games come back. A gentle warning appears two minutes before.</div>
+        <div class="hint">After this much play, Nuran offers a gentle reminder only. Play never closes, and a Learn game is always optional.</div>
         <label>Games shown in Play
           <div class="row" style="display:flex;gap:14px;flex-wrap:wrap">
             ${playActivities.map(a =>
@@ -2171,7 +2272,6 @@
     $('#s-cele').onchange = e => setSetting('celebration', e.target.value);
     $('#s-celev').onchange = e => setSetting('celebrationLevel', e.target.value);
     $('#s-motion').onchange = e => setSetting('motionLevel', e.target.value);
-    $('#s-pic').onchange = e => setSetting('pictureStyle', e.target.value);
     $('#s-nudge').onchange = e => { setSetting('playNudge', e.target.value); playSec = 0; nudgeWarned = false; };
     $('#s-clang').onchange = e => setSetting('contentLang', e.target.value);
     $('#s-bridge').onchange = e => setSetting('learnTalkBridge', e.target.value === 'on');
@@ -2184,6 +2284,8 @@
     });
     $('#s-wordonly').onchange = e => setSetting('wordOnly', e.target.value === 'yes');
     $('#s-density').onchange = e => setSetting('density', Number(e.target.value));
+    $('#s-rail').onchange = e => setSetting('dailyLanguageRail', e.target.value === 'on');
+    $('#s-rail-words').onclick = () => go('managewords');
     $('#s-rate').onchange = async e => {
       await setSetting('speechRate', Number(e.target.value));
       $('#s-voice-style').value = 'custom';
@@ -2576,7 +2678,7 @@
       await Seed.ensureEssentials();    // non-destructive response/sentence-word migrations
       DB.requestPersistence();          // spec 2.3.3
       DB.startSnapshotTimer();          // spec 2.3.2
-      setInterval(nudgeTick, 15000);    // play-time learning break (v2.2)
+      setInterval(nudgeTick, 15000);    // optional, non-gating Play transition reminder
       if (window.NuranPlatform.canRegisterServiceWorker()) {
         navigator.serviceWorker.register('sw.js').catch(e => DB.logError('sw register failed: ' + e.message));
       }

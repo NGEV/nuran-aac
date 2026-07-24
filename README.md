@@ -4,8 +4,7 @@ Nuran is a free, private communication and early-literacy app for minimally verb
 installed, it runs offline, has no account, ads, analytics, or tracking, and keeps child data on the
 device unless a caregiver deliberately exports a backup.
 
-This workspace contains a held local update for owner review. It has not been pushed, deployed, or
-submitted to an app store.
+This workspace contains the source for the current web-PWA release. It is not an App Store build.
 
 ## Daily use
 
@@ -13,7 +12,7 @@ The child-facing Home screen offers **Talk**, **People**, **Learn**, and **Play*
 enable an on-device Help alarm. Large buttons, stable positions, pictures with labels, calm colors,
 and forgiving learning activities reduce memory and motor-planning demands.
 
-The held v17 presentation uses a shared professional visual layer across child and caregiver
+The presentation uses a shared professional visual layer across child and caregiver
 screens: a bright sunlit-storybook palette, expressive static color-blocking, consistent white
 symbol wells, richer semantic surfaces, a stable single-line Talk group rail, and clearly accented
 caregiver cards and settings sections. The familiar child routes, AAC symbol meanings, large target
@@ -27,11 +26,11 @@ takes priority over the device voice.
 
 ## Pictures and voices
 
-The default **Best available** picture mode uses a caregiver's photo when one has been added, then
-the bundled Mulberry AAC symbol library, then Nuran's complete original symbol set. The same resolver
-drives Home, Talk words and groups, Talk Anytime, Learn, Play, People fallbacks, and setup previews,
-so imported artwork is visible immediately without creating blank concepts. Caregivers may instead
-choose Mulberry-first or the original Nuran set throughout.
+The default picture policy uses a caregiver's photo for that word when one has been added, then the
+bundled **Nuran Friends** artwork, then a neutral letter tile. Nuran Friends is one original, warm,
+fully illustrated set used consistently across Home, Talk, Learn, Play, People fallbacks, and setup
+previews. Every picture is paired with its written word; caregivers do not need to choose a competing
+symbol library.
 
 The default **Automatic** voice mode ranks the English voices actually installed on the device,
 preferring offline and enhanced/natural voices when the browser identifies those qualities. Settings
@@ -50,11 +49,25 @@ access**, a caregiver can choose:
 
 The child can still open Talk from Home in every mode.
 
+## Daily Language Rail
+
+Talk also has a default-on **Daily Language Rail**: a caregiver-selected row of up to 12 important
+words, in the exact order the caregiver chose. It appears on every Talk screen and never changes
+itself from prediction or recent-use data. A caregiver may hide it or change the words in
+**Words & groups**.
+
 ## Learn, Today, and Visual Routine
 
 After a Learn session, Nuran can offer **Use [word] in Talk**. This opens the real Talk board on the
 correct group and highlights the learned word; it does not create a separate practice board. The
 caregiver can disable this bridge in Settings.
+
+At the top of Learn, **Today** offers one small next step based on local learning activity: a new
+learner begins with pressure-free exploration, then moves through picture and word matching at a
+caregiver-manageable pace. There are no streaks, scores, leaderboards, or penalties.
+
+Play is always available. An optional caregiver reminder can suggest a transition after 15--45
+minutes, but it never closes Play or makes a lesson compulsory.
 
 The simplified **Caregiver Today** screen is a calm action summary rather than an analytics
 dashboard. It shows backup health, recently used words, family recording coverage, the Visual
@@ -86,12 +99,13 @@ For a child device, consider iPadOS **Guided Access** so the device remains insi
 
 Settings are grouped by task: Talk & access, Voice & sound, Pictures & language, Learn & Play,
 Motion & celebrations, and Data reminders. Changes save immediately. Motion defaults to None and can
-be set to Gentle or Full by a caregiver. The four-step full setup makes the actual device voice and
-picture-library choice visible before motion and celebration choices.
+be set to Gentle or Full by a caregiver. The four-step full setup makes the actual device voice,
+friendly picture policy, motion, and celebration choices clear before handoff to the child.
 
 See `TECHNICAL.md` for architecture, verification, and native synchronization. The illustrated
-user manual (`nuran-user-manual.pdf`, Version 3) covers this update: first-time setup, Talk
-Anytime, Learn & Play, the Visual Routine, Caregiver Today, and grouped Settings.
+user manual (`nuran-user-manual.pdf`, Version 5) covers this update: first-time setup, Talk
+Anytime, the Daily Language Rail, Learn & Play, the Visual Routine, Caregiver Today, and grouped
+Settings.
 
 ## License
 

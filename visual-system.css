@@ -420,6 +420,28 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 }
 
 .pinned-row { gap: 10px; }
+.daily-language-rail {
+  display: grid;
+  gap: 7px;
+  padding: 10px 12px 12px;
+  border: 1px solid rgba(78, 183, 176, .32);
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(232, 248, 245, .9), rgba(255, 252, 245, .94));
+}
+.daily-language-rail .pinned-row { flex-wrap: wrap; }
+.daily-language-rail .pin-tile { flex: 1 1 118px; }
+.rail-title { color: #2a706a; font-size: .86rem; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.today-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 14px 16px; border: 2px solid rgba(246, 184, 50, .52); border-radius: 20px;
+  background: linear-gradient(135deg, #fff8dc, #fffdf8);
+}
+.today-row > div { display: grid; gap: 3px; }
+.today-kicker, .learn-all-title { color: #8d6200; font-size: .82rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.today-row .hint { color: #596576; }
+.today-start { display: inline-flex; min-height: 68px; align-items: center; gap: 7px; padding: 7px 12px; border: 0; border-radius: 15px; background: #fff; color: #304156; font-weight: 800; box-shadow: 0 3px 0 rgba(105, 79, 8, .16); }
+.today-start .sym svg { width: 46px; height: 46px; }
+.learn-all-title { margin-top: 4px; }
 .pin-tile {
   border-width: 1.5px;
   border-radius: var(--radius-md);
@@ -662,6 +684,33 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 }
 .btn-danger { border-width: 1.5px; }
 
+/* Custom-skinned native form controls. The native <select> element is kept —
+   not replaced with a JS-built listbox — so keyboard, VoiceOver, and Switch
+   Control behavior stay exactly what the OS already guarantees. Only the
+   closed-state chrome is restyled to match the rest of the visual system. */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-color: var(--surface-strong);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234b5870' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 18px;
+  padding-right: 42px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+select:hover { border-color: var(--line-strong); }
+select:focus-visible {
+  outline: 4px solid var(--accent);
+  outline-offset: 2px;
+  border-color: var(--accent-strong);
+}
+select:disabled { opacity: 0.55; cursor: not-allowed; }
+
 /* Learning, play, routine, overlays */
 .wz-card,
 .ft-card,
@@ -720,6 +769,72 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 .tok-question { background: linear-gradient(145deg, #f0e8ff, #d7c4ff); border-color: var(--cat-question-edge); }
 .tok-place    { background: linear-gradient(145deg, #dff8f1, #bcebe2); border-color: var(--cat-place-edge); }
 .tok-neutral  { background: linear-gradient(145deg, #f7f3ff, #e5def4); border-color: var(--cat-neutral-edge); }
+
+/* Learn and Play hubs: Sprout the mascot fills the hub with real, warm
+   content instead of empty background below a short row of game cards.
+   Shared by both hubs; Learn additionally gets the sticker collection —
+   Play stays reward-free, matching its own "fun, non-educational" intent. */
+.learn-hub .tile-grid,
+.play-hub .tile-grid { flex: 0 0 auto; }
+
+.hub-hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 22px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--line);
+  background: linear-gradient(135deg, #fff3d0, #ffe1ea 60%, #eee5ff);
+  box-shadow: var(--shadow-sm);
+}
+.hub-mascot { flex: none; display: grid; place-items: center; filter: drop-shadow(0 6px 10px rgba(45, 31, 79, 0.14)); }
+.hub-mascot svg { display: block; }
+.hub-hero-copy { display: flex; flex-direction: column; gap: 3px; }
+.hub-hero-greet { font-weight: 800; font-size: 1.28rem; letter-spacing: -0.02em; color: var(--ink); }
+.hub-hero-sub { color: var(--ink-soft); font-size: 1rem; }
+.play-hub .hub-hero { background: linear-gradient(135deg, #d3f5ea, #d7e8ff 55%, #ffe5f2); margin-bottom: 4px; }
+
+.learn-collection {
+  margin-top: auto;
+  padding: 18px 22px;
+  border-radius: var(--radius-lg);
+  border: 1.5px solid var(--line);
+  background: linear-gradient(145deg, #eafaf5, #fffaf6 55%);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.learn-collection-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.learn-collection-title { font-weight: 800; font-size: 1.08rem; color: var(--ink); }
+.learn-collection-msg { color: var(--ink-soft); font-size: 0.95rem; }
+.sticker-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.sticker-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ffd873, #f6b832);
+  border: 2px solid #b9791a;
+  box-shadow: 0 2px 0 rgba(45, 31, 79, 0.10);
+}
+.sticker-more {
+  font-weight: 700;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.mascot-cheer { filter: drop-shadow(0 8px 14px rgba(45, 31, 79, 0.16)); }
+.cele-stickers { color: var(--ink-soft); font-size: 1.02rem; text-align: center; }
+
+@media (max-width: 640px) {
+  .hub-hero { padding: 13px 16px; gap: 12px; }
+  .hub-mascot svg { width: 76px; height: 76px; }
+  .hub-hero-greet { font-size: 1.14rem; }
+  .learn-collection { padding: 14px 16px; }
+}
 
 @media (max-width: 820px) {
   .welcome-kicker { font-size: 0.68rem; letter-spacing: 0.055em; padding: 4px 7px; }

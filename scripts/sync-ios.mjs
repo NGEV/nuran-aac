@@ -16,16 +16,15 @@ const sharedFiles = [
   'index.html',
   'lucide.js',
   'manifest.webmanifest',
-  'mulberry-map.js',
+  'nuran-friends.js',
   'nuran-user-manual.pdf',
   'seed.js',
   'speech.js',
   'styles.css',
   'visual-system.css',
   'sw.js',
-  'symbols.js',
 ];
-const sharedDirectories = ['core', 'features', 'fonts', 'mulberry'];
+const sharedDirectories = ['core', 'features', 'fonts'];
 
 async function walk(relativeDirectory) {
   const directory = path.join(source, relativeDirectory);

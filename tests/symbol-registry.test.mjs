@@ -2,16 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 globalThis.window = globalThis;
-globalThis.MulberryMap = {
-  hello: 'mulberry/hello.svg',
-  hug: 'mulberry/hug.svg',
-  water: 'mulberry/water.svg',
-};
-globalThis.Symbols = {
-  has: key => ['_talk', '_people', 'water', 'yes'].includes(key),
-  get: key => `<svg data-original="${key}"></svg>`,
-  letterTile: label => `<svg data-letter="${label}"></svg>`,
-};
+await import('../nuran-friends.js');
 await import('../core/symbol-registry.js');
 
 test('best available uses caregiver photos before library artwork', () => {
@@ -23,13 +14,14 @@ test('best available uses caregiver photos before library artwork', () => {
   assert.equal(NuranSymbols.source({ label: 'water' }, { style: 'best', photoHTML: 'photo' }), 'photo');
 });
 
-test('Mulberry resolves words and visible app roles through one registry', () => {
-  assert.match(NuranSymbols.html({ label: 'water', symbolKey: 'water' }, { style: 'best' }), /mulberry\/water\.svg/);
-  assert.match(NuranSymbols.html({ label: 'Talk', symbolKey: '_talk' }, { style: 'best' }), /mulberry\/hello\.svg/);
-  assert.match(NuranSymbols.html({ label: 'People', symbolKey: '_people' }, { style: 'best' }), /mulberry\/hug\.svg/);
+test('Nuran Friends resolves words and visible app roles through one registry', () => {
+  assert.match(NuranSymbols.html({ label: 'water', symbolKey: 'water' }, { style: 'best' }), /data-nuran-friend="water"/);
+  assert.match(NuranSymbols.html({ label: 'Talk', symbolKey: '_talk' }, { style: 'best' }), /data-nuran-friend="hello"/);
+  assert.match(NuranSymbols.html({ label: 'People', symbolKey: '_people' }, { style: 'best' }), /data-nuran-friend="hug"/);
+  assert.equal(NuranSymbols.source({ label: 'water', symbolKey: 'water' }, { style: 'best' }), 'nuran-friends');
 });
 
-test('complete original symbols remain a deterministic fallback and explicit mode', () => {
-  assert.match(NuranSymbols.html({ label: 'yes', symbolKey: 'yes' }, { style: 'best' }), /data-original="yes"/);
-  assert.match(NuranSymbols.html({ label: 'water', symbolKey: 'water' }, { style: 'symbols' }), /data-original="water"/);
+test('unknown visual keys receive a neutral letter tile instead of old artwork', () => {
+  assert.match(NuranSymbols.html({ label: 'custom', symbolKey: '_custom' }, { style: 'best' }), /data-nuran-friend="letter"/);
+  assert.equal(NuranSymbols.source({ label: 'custom', symbolKey: '_custom' }, { style: 'best' }), 'letter');
 });

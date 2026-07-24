@@ -15,7 +15,7 @@ discard stable AAC behavior and require the family to revalidate everything at o
 foundation extracts low-risk seams first while preserving the build-free runtime:
 
 - `core/settings.js` — defaults, validation, and normalization for all settings.
-- `core/symbol-registry.js` — one photo/Mulberry/original fallback policy for all visible symbols.
+- `core/symbol-registry.js` — one family-photo/Nuran-Friends/neutral-letter fallback policy for all visible symbols.
 - `core/activity-registry.js` — activity metadata plus mount/unmount lifecycle hooks.
 - `core/platform.js` — web/native sharing and service-worker capabilities.
 - `features/activity-catalog.js` — declarative Learn and Play catalog with motion eligibility.
@@ -45,7 +45,9 @@ Important current defaults include:
 - `learnTalkBridge: true`
 - `motionLevel: "none"`
 - `density: 4`
-- `pictureStyle: "best"` — caregiver photo → Mulberry → original Nuran symbol
+- `pictureStyle: "best"` — caregiver photo → Nuran Friends → neutral letter tile
+- `dailyLanguageRail: true` — caregiver-selected words retain their exact order on every Talk screen
+- `dailyLanguageWordIds` — up to 12 stable words; never generated from predictions or recent use
 - `voiceURI: "auto"` — highest-ranked installed offline English voice
 
 ## Data model
@@ -76,11 +78,11 @@ activities select a matching installed language voice instead of forcing the sav
 Speaking styles remain rate/pitch adjustments to the selected voice, not downloaded voice models.
 A muted priming utterance handles iOS first-gesture behavior.
 
-`core/symbol-registry.js` is the only visual-symbol policy. Best mode uses a family photo when
-present, then one of the 64 bundled Mulberry symbols, then the complete original symbol set, and
-finally a letter tile. Role aliases let appropriate Mulberry concepts appear on Home and navigation;
-semantic fallbacks remain original rather than substituting a misleading picture. Existing stored
-`photos` preference values normalize to Best without discarding photos.
+`core/symbol-registry.js` is the only visual-symbol policy. It uses a family photo when present,
+then the complete 120-word Nuran Friends code-native art set, and finally a neutral letter tile. The
+same resolver supplies word tiles and navigation role aliases, so child-facing screens never mix
+old pictograms and friendly illustrations. Historic visual-mode values normalize to this one safe
+policy without discarding caregiver photos.
 
 `talkAccessMode` supports `button`, `dock`, and `off`. Talk access is rendered only on child-facing
 routes. The custom dock always starts with Talk and contains at most three de-duplicated word IDs.
@@ -103,7 +105,7 @@ text, Guided Access, first-tap speech, and real family observation on the target
 ## Visual system
 
 `styles.css` remains the behavior-adjacent layout and accessibility foundation.
-`visual-system.css` is loaded afterward and owns the v17 art direction: canvas/surface/ink tokens,
+`visual-system.css` is loaded afterward and owns the visual art direction: canvas/surface/ink tokens,
 semantic category colors, radii, shadows, focus appearance, icon wells, navigation chrome, Talk
 composer and category rail, child tiles, caregiver cards, Settings sections, and responsive
 welcome composition. New features should reuse these variables and shared component classes before
@@ -112,9 +114,9 @@ above and be reviewed at 1280×720 and 768×1024.
 
 ## Offline shell
 
-The held local `sw.js` (`nuran-v17`) precaches 85 verified assets. Navigation failures may fall back to `index.html`; missing
-scripts, images, or data do not receive HTML as a false success. Only successful network responses
-are cached. Bump `CACHE_VERSION` for every shipped runtime change.
+`sw.js` (`nuran-v23`) precaches 22 verified runtime assets. Navigation failures may fall back to
+`index.html`; missing scripts, images, or data do not receive HTML as a false success. Only
+successful network responses are cached. Bump `CACHE_VERSION` for every shipped runtime change.
 
 ## Development and verification
 
@@ -126,11 +128,10 @@ npm run verify:all
 
 This verifies every service-worker asset, runs Node unit/data tests through `node:test` and
 `fake-indexeddb`, then runs a direct Playwright WebKit flow at 1280×720 and 768×1024. The browser flow
-checks the onboarding viewport, four-step voice/picture setup, visible default Mulberry Home assets,
-caregiver keyboard-confirm gate, Talk Anytime button/dock/off modes,
-dock duplicate refusal without persistence changes, Caregiver Today empty-state navigation, grouped
-Settings, one Visual Routine, the most-practiced Learn-to-Talk bridge selection, absence of page
-errors, and axe WCAG A/AA results on the main changed states.
+checks the onboarding viewport, Friendly Nuran picture setup, child-facing Nuran Friends art,
+Talk Anytime button/dock/off modes, the Daily Language Rail, Caregiver Today navigation, grouped
+Settings, one Visual Routine, the Learn-to-Talk bridge selection, non-gating Play reminder copy,
+absence of page errors, and axe WCAG A/AA results on the main changed states.
 
 The standard Playwright runner configuration remains available as `npm run test:e2e:runner`, but the
 direct `npm run test:e2e` script is the authoritative browser check in this exported workspace.
