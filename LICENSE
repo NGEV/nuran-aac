@@ -38,6 +38,18 @@ no visual modifications to the SVG artwork are claimed.
 Atkinson Hyperlegible font (fonts/) is copyright Braille Institute of America,
 licensed under the SIL Open Font License 1.1.
 
+ARASAAC pictograms (arasaac/) are property of the Government of Aragón and
+were created by Sergio Palao for ARASAAC (https://arasaac.org). They are
+distributed under Creative Commons Attribution-NonCommercial-ShareAlike 4.0
+International (CC BY-NC-SA 4.0):
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+Those pictogram files and derivatives are not licensed under the MIT license
+above. Nuran must remain free, ad-free, and non-commercial while this bundle
+ships unless separate permission is obtained or the assets are replaced.
+Per-file source IDs and hashes are recorded in
+design-intake/symbol-redesign/arasaac-manifest.json.
+
 Lucide icons (lucide.js) are copyright Lucide Icons and Contributors and are
 licensed under the ISC License:
 

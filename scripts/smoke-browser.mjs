@@ -66,6 +66,14 @@ async function checkAccessibility(page, state) {
   assert.deepEqual(failures, [], `${state}: accessibility violations:\n${failures.join('\n')}`);
 }
 
+async function waitForStoredSetting(page, key, expected) {
+  for (let attempt = 0; attempt < 60; attempt++) {
+    if (await page.evaluate(([name, value]) => DB.getSetting(name).then(stored => stored === value), [key, expected])) return;
+    await page.waitForTimeout(50);
+  }
+  throw new Error(`Setting ${key} did not persist ${JSON.stringify(expected)}`);
+}
+
 try {
   for (const viewport of viewports) {
     const context = await browser.newContext({ viewport });
@@ -77,7 +85,7 @@ try {
     const quick = page.getByRole('button', { name: /Quick setup/ });
     await quick.waitFor({ state: 'visible' });
     const quickBox = await quick.boundingBox();
-    const logoBox = await page.locator('.welcome-logo .nuran-letter-tile, .welcome-logo img').boundingBox();
+    const logoBox = await page.locator('.welcome-logo img').boundingBox();
     assert.ok(quickBox && quickBox.y + quickBox.height <= viewport.height,
       `${viewport.name}: Quick Setup is below the initial viewport`);
     assert.ok(logoBox && logoBox.height <= 160, `${viewport.name}: welcome visual exceeds 160px`);
@@ -86,14 +94,14 @@ try {
 
     if (viewport.name === 'iPad landscape') {
       // The full setup path exposes a real installed-device voice picker and the
-      // real-world picture contract before a caregiver finishes setup.
+      // complete offline picture contract before a caregiver finishes setup.
       await page.getByRole('button', { name: /Choose settings/ }).click();
       await page.getByRole('heading', { name: 'Setup 1 of 4 — Voice' }).waitFor();
       assert.equal(await page.locator('#wz-device-voice option[value="auto"]').count(), 1,
         'Setup is missing automatic best voice');
       await page.getByRole('button', { name: 'Next' }).click();
       await page.getByRole('heading', { name: 'Setup 2 of 4 — Pictures' }).waitFor();
-      await page.getByRole('button', { name: /Real-world pictures/ }).click();
+      await page.getByRole('button', { name: /Most pictures/ }).click();
       assert.equal(await page.evaluate(() => DB.getSetting('pictureStyle')), 'best',
         'Full setup did not persist the safe picture contract');
       await page.reload({ waitUntil: 'domcontentloaded' });
@@ -106,16 +114,53 @@ try {
     assert.equal(await page.evaluate(() => DB.getSetting('voiceURI')), 'auto', `${viewport.name}: Quick Setup did not select automatic best voice`);
     assert.equal(await page.locator('.home-grid svg.nuran-friends-art').count(), 0,
       `${viewport.name}: retired cartoon visual art is still reachable from Home`);
-    assert.equal(await page.locator('.home-grid .nuran-letter-tile').count(), 4,
-      `${viewport.name}: Home is not using the plain-text fallback for unresolved real-world photos`);
+    assert.equal(await page.locator('.home-grid .nuran-letter-tile').count(), 0,
+      `${viewport.name}: Home still contains a default letter fallback`);
+    assert.ok(await page.locator('.home-grid [data-nuran-arasaac], .home-grid [data-nuran-real-photo]').count() >= 4,
+      `${viewport.name}: Home is not using the complete picture layer`);
+    await page.getByRole('button', { name: 'People' }).click();
+    await page.getByRole('heading', { name: 'People' }).waitFor();
+    assert.equal(await page.locator('.nuran-letter-tile').count(), 0,
+      `${viewport.name}: People contains a retired single-letter fallback`);
+    assert.ok(await page.locator('[data-nuran-arasaac], [data-nuran-real-photo]').count() >= 1,
+      `${viewport.name}: People empty state has no reviewed picture`);
+    await page.getByRole('button', { name: /Home/ }).click();
     await page.getByRole('button', { name: 'Talk', exact: true }).click();
     await page.getByLabel('Daily language rail').waitFor();
     assert.equal(await page.locator('[data-railword]').count(), 8,
       `${viewport.name}: default Daily Language Rail is not stable and complete`);
+    assert.equal(await page.locator('[data-railword] .psym img').count(), 8,
+      `${viewport.name}: a Daily Language Rail word lost its bundled picture`);
+    assert.equal(await page.locator('.nuran-letter-tile').count(), 0,
+      `${viewport.name}: Quick Setup Talk contains a default letter tile`);
+    assert.equal(await page.locator('[data-word] .sym img').count(), 4,
+      `${viewport.name}: Quick Setup did not picture every visible Talk word`);
+    await capture(page, viewport.name === 'iPad landscape' ? '10-talk-board-landscape' : '11-talk-board-portrait');
     await page.getByRole('button', { name: 'Sentence Words', exact: true }).click();
     await page.getByRole('button', { name: 'is', exact: true }).waitFor();
     assert.deepEqual(await page.locator('[data-word] .lbl').allTextContents(), ['is', 'am', 'are', 'a'],
       `${viewport.name}: the default Sentence Words page is not exposing is/am/are/a`);
+    await page.evaluate(async () => {
+      await DB.save('vocabulary', {
+        id: 'custom-g8-review',
+        label: 'Grandma time',
+        categoryId: 'cat-core',
+        core: false,
+        custom: true,
+        deleted: false,
+        sortOrder: -1,
+        imageBlob: null,
+        audioBlob: null,
+      });
+    });
+    await page.getByRole('button', { name: 'Core Words', exact: true }).click();
+    const customFallback = page.locator('[data-word="custom-g8-review"] .nuran-word-tile');
+    await customFallback.waitFor();
+    assert.equal((await customFallback.innerText()).trim(), 'Grandma time',
+      `${viewport.name}: a pictureless custom word did not show its full readable label`);
+    assert.equal(await page.locator('.nuran-letter-tile').count(), 0,
+      `${viewport.name}: custom-word coverage restored a retired single-letter tile`);
+    await page.evaluate(() => DB.softDelete('vocabulary', 'custom-g8-review'));
     await checkAccessibility(page, `${viewport.name} Sentence Words`);
     await page.getByRole('button', { name: /Home/ }).click();
     await page.getByRole('button', { name: 'Learn' }).click();
@@ -157,9 +202,19 @@ try {
       await page.getByRole('button', { name: /Settings/ }).click();
       await page.getByRole('heading', { name: /Talk & access/ }).waitFor();
       await page.getByRole('heading', { name: /Motion & celebrations/ }).waitFor();
-      await page.getByText(/one safe visual language/i).waitFor();
+      await page.getByText(/Default order:/i).waitFor();
       assert.equal(await page.locator('#s-rail').inputValue(), 'on', 'Settings did not enable the Daily Language Rail by default');
       assert.equal(await page.locator('#s-device-voice option[value="auto"]').count(), 1, 'Automatic best device voice is missing');
+      assert.equal(await page.locator('#s-picture-display').inputValue(), 'together',
+        'Pictures + words is not the default display mode');
+      await page.locator('#s-picture-display').selectOption('words');
+      await waitForStoredSetting(page, 'wordOnly', true);
+      assert.equal(await page.evaluate(() => DB.getSetting('wordOnly')), true,
+        'Words-only selection did not persist the explicit text mode');
+      await page.locator('#s-picture-display').selectOption('together');
+      await waitForStoredSetting(page, 'wordOnly', false);
+      assert.equal(await page.evaluate(() => DB.getSetting('wordOnly')), false,
+        'Pictures + words did not restore the complete picture mode');
       await page.getByText(/Play never closes/i).waitFor();
       await checkAccessibility(page, 'Caregiver Settings');
       await capture(page, '04-grouped-settings', true);

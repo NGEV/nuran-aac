@@ -23,14 +23,14 @@
   --danger: #a9385c;
   --ok: #28784d;
 
-  --cat-people-bg: #ffe8a3;   --cat-people-edge: #9b6600;
-  --cat-action-bg: #c8f0cf;   --cat-action-edge: #287b4a;
-  --cat-describe-bg: #ccecff; --cat-describe-edge: #2f79aa;
-  --cat-thing-bg: #ffd7b7;    --cat-thing-edge: #a95322;
-  --cat-social-bg: #ffd1df;   --cat-social-edge: #ab3f67;
-  --cat-question-bg: #e0d1ff; --cat-question-edge: #6543b4;
-  --cat-place-bg: #c9f0e8;    --cat-place-edge: #207970;
-  --cat-neutral-bg: #eee9fa;  --cat-neutral-edge: #645b82;
+  --cat-people-bg: #f0e6c6;   --cat-people-edge: #8a6a2e;
+  --cat-action-bg: #d7e7d9;   --cat-action-edge: #3d6b4f;
+  --cat-describe-bg: #d6e4ef; --cat-describe-edge: #3f6d8a;
+  --cat-thing-bg: #ecdac9;    --cat-thing-edge: #8a5a3e;
+  --cat-social-bg: #ecd7de;   --cat-social-edge: #8a5568;
+  --cat-question-bg: #dcd6ec; --cat-question-edge: #5f4f8a;
+  --cat-place-bg: #d0e3df;    --cat-place-edge: #3a6d66;
+  --cat-neutral-bg: #e6e2ed;  --cat-neutral-edge: #665d78;
 
   --radius-sm: 12px;
   --radius-md: 18px;
@@ -220,7 +220,7 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 
 .welcome-logo svg,
 .welcome-logo img,
-.welcome-logo .nuran-letter-tile { width: 118px; height: 118px; }
+.welcome-logo .nuran-word-tile { width: 118px; height: 118px; }
 
 .welcome-kicker {
   margin-bottom: 10px;
@@ -300,7 +300,7 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 
 .home-btn svg,
 .home-btn > img,
-.home-btn > .nuran-letter-tile {
+.home-btn > .nuran-word-tile {
   width: 82px;
   height: 82px;
   padding: 9px;
@@ -340,7 +340,7 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 
 .home-grid.home-v2 .home-btn.hero svg,
 .home-grid.home-v2 .home-btn.hero > img,
-.home-grid.home-v2 .home-btn.hero > .nuran-letter-tile {
+.home-grid.home-v2 .home-btn.hero > .nuran-word-tile {
   width: 108px;
   height: 108px;
   border-radius: 28px;
@@ -432,7 +432,7 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
   background: linear-gradient(135deg, rgba(232, 248, 245, .9), rgba(255, 252, 245, .94));
 }
 .daily-language-rail .pinned-row { flex-wrap: wrap; }
-.daily-language-rail .pin-tile { flex: 1 1 118px; }
+.daily-language-rail .pin-tile { flex: 1 1 118px; gap: 6px; padding: 8px 7px; }
 .rail-title { color: #2a706a; font-size: .86rem; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
 .today-row {
   display: flex; align-items: center; justify-content: space-between; gap: 14px;
@@ -477,28 +477,31 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 .tile > * { position: relative; z-index: 1; }
 
 .tile .sym {
-  width: 94px;
-  height: 94px;
+  width: 104px;
+  height: 104px;
   display: grid;
   place-items: center;
   padding: 7px;
   border: 3px solid rgba(255, 255, 255, 0.90);
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.88);
+  background: #fff;
   box-shadow: 0 9px 0 rgba(45, 31, 79, 0.06), 0 15px 24px rgba(45, 31, 79, 0.11);
 }
 
 .tile .sym svg,
 .tile .sym img {
-  width: 80px;
-  height: 80px;
+  width: 88px;
+  height: 88px;
   object-fit: contain;
   border-radius: 13px;
 }
 
-/* Real-world visual contract: photos stay literal; unresolved words are text, never drawings. */
-.nuran-real-photo { display: block; background: #fff; }
-.nuran-letter-tile {
+/* Complete picture contract: literal photos stay unfiltered; curated pictograms are only lightly
+   softened. Text tiles are an explicit caregiver-selected reading mode, never a silent default. */
+.nuran-real-photo,
+.symbol-photo { display: block; background: #fff; filter: none; }
+.nuran-arasaac-pictogram { filter: saturate(0.9); }
+.nuran-word-tile {
   box-sizing: border-box;
   display: grid;
   place-items: center;
@@ -512,13 +515,18 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
   background: #fff;
   color: var(--ink);
   font-family: 'Atkinson Hyperlegible', system-ui, sans-serif;
-  font-size: clamp(1.4rem, 5vw, 3rem);
+  font-size: clamp(0.86rem, 2.7vw, 1.45rem);
   font-weight: 800;
-  line-height: 1;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .tile .lbl { font-size: 1.42rem; letter-spacing: -0.02em; }
 .tile.word-only .lbl { font-size: 2.1rem; }
+.tile.picture-large .sym { width: 120px; height: 120px; padding: 6px; }
+.tile.picture-large .sym img { width: 106px; height: 106px; }
+.tile.picture-large .lbl { font-size: 1.1rem; }
 .bridge-highlight { outline-color: rgba(106, 78, 219, 0.78); }
 
 .talk-dock {
@@ -785,14 +793,14 @@ select:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 
 /* Semantic color surfaces retain stable category meaning. */
-.tok-people   { background: linear-gradient(145deg, #fff2aa, #ffd986); border-color: var(--cat-people-edge); }
-.tok-action   { background: linear-gradient(145deg, #daf6d7, #bcebc6); border-color: var(--cat-action-edge); }
-.tok-describe { background: linear-gradient(145deg, #e1f4ff, #bfe5fb); border-color: var(--cat-describe-edge); }
-.tok-thing    { background: linear-gradient(145deg, #ffe9d6, #ffcca6); border-color: var(--cat-thing-edge); }
-.tok-social   { background: linear-gradient(145deg, #ffe4ec, #ffc5d7); border-color: var(--cat-social-edge); }
-.tok-question { background: linear-gradient(145deg, #f0e8ff, #d7c4ff); border-color: var(--cat-question-edge); }
-.tok-place    { background: linear-gradient(145deg, #dff8f1, #bcebe2); border-color: var(--cat-place-edge); }
-.tok-neutral  { background: linear-gradient(145deg, #f7f3ff, #e5def4); border-color: var(--cat-neutral-edge); }
+.tok-people   { background: var(--cat-people-bg); border-color: var(--cat-people-edge); }
+.tok-action   { background: var(--cat-action-bg); border-color: var(--cat-action-edge); }
+.tok-describe { background: var(--cat-describe-bg); border-color: var(--cat-describe-edge); }
+.tok-thing    { background: var(--cat-thing-bg); border-color: var(--cat-thing-edge); }
+.tok-social   { background: var(--cat-social-bg); border-color: var(--cat-social-edge); }
+.tok-question { background: var(--cat-question-bg); border-color: var(--cat-question-edge); }
+.tok-place    { background: var(--cat-place-bg); border-color: var(--cat-place-edge); }
+.tok-neutral  { background: var(--cat-neutral-bg); border-color: var(--cat-neutral-edge); }
 
 /* Learn and Play hubs remain text-led between the game cards. Learn additionally gets a small
    collection; Play stays reward-free, matching its own "fun, non-educational" intent. */
@@ -868,7 +876,7 @@ select:disabled { opacity: 0.55; cursor: not-allowed; }
   .welcome-logo { width: 116px; height: 116px; margin-bottom: 12px; border-radius: 30px; }
   .welcome-logo svg,
   .welcome-logo img,
-  .welcome-logo .nuran-letter-tile { width: 82px; height: 82px; }
+  .welcome-logo .nuran-word-tile { width: 82px; height: 82px; }
   .welcome-copy { margin-top: 8px; }
 }
 
@@ -881,7 +889,7 @@ select:disabled { opacity: 0.55; cursor: not-allowed; }
   .welcome-logo { width: 104px; height: 104px; margin-bottom: 10px; }
   .welcome-logo svg,
   .welcome-logo img,
-  .welcome-logo .nuran-letter-tile { width: 74px; height: 74px; }
+  .welcome-logo .nuran-word-tile { width: 74px; height: 74px; }
   .welcome-brand h2 { font-size: 1.75rem; }
   .welcome-copy { font-size: 0.92rem; }
   .welcome-setup { padding: 24px; }

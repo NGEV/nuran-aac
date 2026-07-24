@@ -12,11 +12,10 @@ The child-facing Home screen offers **Talk**, **People**, **Learn**, and **Play*
 enable an on-device Help alarm. Large buttons, stable positions, pictures with labels, calm colors,
 and forgiving learning activities reduce memory and motor-planning demands.
 
-The presentation uses a shared professional visual layer across child and caregiver
-screens: a bright sunlit-storybook palette, expressive static color-blocking, consistent white
-symbol wells, richer semantic surfaces, a stable single-line Talk group rail, and clearly accented
-caregiver cards and settings sections. The familiar child routes, AAC symbol meanings, large target
-geometry, and caregiver-controlled motion are unchanged.
+The presentation uses a shared professional visual layer across child and caregiver screens:
+calmer muted category colors, consistent white picture wells, bold labels below each picture, a
+stable single-line Talk group rail, and clearly accented caregiver cards and settings sections.
+The familiar child routes, large target geometry, and caregiver-controlled motion are unchanged.
 
 Talk includes the complete Project Core 36 starter set plus an adjacent **Sentence Words** extension
 for grammatical building blocks such as `is`, `am`, `are`, `a`, `the`, `and`, pronouns,
@@ -26,11 +25,15 @@ takes priority over the device voice.
 
 ## Pictures and voices
 
-The default picture policy uses a caregiver's photo for that word when one has been added, then a
-reviewed bundled real-world photograph, then a neutral letter tile. The app never invents a cartoon,
-stick figure, or pretend person for a missing photo. Every picture is paired with its written word;
-the first offline photo pack covers clear concrete objects while people, actions, places, and abstract
-words stay text-first until a caregiver or curator supplies an appropriate real image.
+The default picture policy uses a caregiver's photo when one has been added, then a reviewed
+bundled real-world photograph, then one manually curated offline ARASAAC picture for every built-in
+word. Every picture is paired with its written word. A caregiver may choose bigger pictures or an
+explicit Words-only mode. A brand-new custom word without a photo uses its complete readable label,
+never a single initial, and the Add-a-word screen encourages adding a familiar family photo.
+
+The 120-pictogram ARASAAC bundle remains CC BY-NC-SA 4.0 and keeps Nuran free, ad-free, and
+non-commercial. Exact per-word IDs and hashes are recorded in the project manifest; the in-app
+Settings credits and `ARASAAC_CREDITS.md` carry the required attribution.
 
 The default **Automatic** voice mode ranks the English voices actually installed on the device,
 preferring offline and enhanced/natural voices when the browser identifies those qualities. Settings

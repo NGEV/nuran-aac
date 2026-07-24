@@ -189,11 +189,19 @@
     } else if (item.photoBlob instanceof Blob) {
       photoHTML = `<img class="symbol-img symbol-photo" src="${trackURL(URL.createObjectURL(item.photoBlob))}" alt="">`;
     }
-    return window.NuranSymbols.html(item, { style: settings.pictureStyle, photoHTML });
+    return window.NuranSymbols.html(item, {
+      style: settings.pictureStyle,
+      photoHTML,
+      wordOnly: settings.wordOnly,
+      preferRealPhotos: settings.preferRealPhotos,
+    });
   }
 
   function visualSymbol(label, symbolKey, style) {
-    return window.NuranSymbols.html({ label, symbolKey }, { style: style || settings.pictureStyle });
+    return window.NuranSymbols.html(
+      { label, symbolKey },
+      { style: style || settings.pictureStyle, preferRealPhotos: settings.preferRealPhotos }
+    );
   }
 
   async function speakAndFeedback(btn, item) {
@@ -341,8 +349,8 @@
 
   /* ---------- Talk (three modes, spec 3.1) ---------- */
 
-  /* Symbols for the built-in groups; caregiver-made groups fall back to a letter tile.
-     Kept as a map so installs made before symbolKey existed still show symbols. */
+  /* Pictures for the built-in groups. Kept as a map so installs made before
+     symbolKey existed still show the same reviewed group visuals. */
   const CAT_SYMBOLS = {
     'cat-core': '_talk', 'cat-food': 'apple', 'cat-body': '_body', 'cat-feelings': 'happy',
     'cat-actions': 'go', 'cat-places': 'home', 'cat-play': 'ball', 'cat-phrases': '_star',
@@ -474,7 +482,7 @@
         ${railRow}
         <div class="tile-grid ${dClass}">
           ${slice.map(w => `
-            <button class="tile ${wordOnly ? 'word-only' : ''} ${w.id === params.highlightId ? 'bridge-highlight' : ''} tok-${esc(w.colorToken || cat.colorToken)}" data-word="${esc(w.id)}">
+            <button class="tile ${wordOnly ? 'word-only' : ''} ${settings.pictureDisplay === 'big' ? 'picture-large' : ''} ${w.id === params.highlightId ? 'bridge-highlight' : ''} tok-${esc(w.colorToken || cat.colorToken)}" data-word="${esc(w.id)}">
               ${wordOnly ? '' : `<span class="sym">${symbolHTML(w)}</span>`}
               <span class="lbl">${esc(w.label)}</span>
             </button>`).join('') ||
@@ -1374,6 +1382,9 @@
       await setSetting('motionLevel', 'none');
       await setSetting('celebrationLevel', 'cheerful');
       await setSetting('pictureStyle', 'best');
+      await setSetting('pictureDisplay', 'together');
+      await setSetting('wordOnly', false);
+      await setSetting('preferRealPhotos', true);
       await setSetting('firstRunDone', true);
       go('home');
     };
@@ -1472,11 +1483,11 @@
 
   screens.wizpictures = function () {
     const choices = [
-      ['best', 'Real-world pictures', 'Family photos when added, then reviewed real-world photos. Words without a reviewed photo stay as plain text.'],
+      ['best', 'Most pictures (recommended)', 'Family photos when added, then reviewed real photos, then one curated ARASAAC picture for every built-in word.'],
     ];
     screen(`${topbar('Setup 2 of 4 — Pictures', null)}
       <div class="screen" style="max-width:760px;margin:0 auto">
-        <p>Pictures are always paired with words. Family photos take priority; bundled pictures are reviewed real-world photographs. A word without a reviewed photo stays as plain text.</p>
+        <p>Every built-in word has a picture. Family photos take priority, then reviewed real photographs, then a friendly curated ARASAAC pictogram. Words stay below the picture.</p>
         <div class="wz-opts">
           ${choices.map(([value, name, description]) => `
             <button class="wz-card ${settings.pictureStyle === value ? 'current' : ''}" data-picture-style="${value}">
@@ -1712,7 +1723,7 @@
         <label>Photo (optional)
           <input id="f-photo" type="file" accept="image/*">
         </label>
-        <div id="photo-status" class="hint">${imageBlob ? 'A photo is attached. Choosing a new one replaces it.' : 'Without a photo, a simple letter tile is shown.'}</div>
+        <div id="photo-status" class="hint">${imageBlob ? 'A photo is attached. Choosing a new one replaces it.' : 'Built-in words use their bundled picture. Add a familiar photo for a brand-new word.'}</div>
         <div class="row">
           <button id="f-rec" type="button">Record my voice</button>
           <button id="f-rec-play" type="button" style="display:${audioBlob ? 'inline-block' : 'none'}">Play recording</button>
@@ -1812,7 +1823,7 @@
       bindNav($('#f-msg'));
       if (!existing) {
         $('#f-label').value = ''; imageBlob = null; audioBlob = null;
-        $('#photo-status').textContent = 'Without a photo, a simple letter tile is shown.';
+        $('#photo-status').textContent = 'Built-in words use their bundled picture. Add a familiar photo for a brand-new word.';
         $('#f-rec-play').style.display = 'none'; $('#f-rec-del').style.display = 'none';
       }
     };
@@ -2089,10 +2100,11 @@
             <option value="on" ${settings.keyboard ? 'selected' : ''}>Shown in the Talk group strip</option>
           </select>
         </label>
-        <label>Talk tiles
-          <select id="s-wordonly">
-            <option value="no" ${!settings.wordOnly ? 'selected' : ''}>Picture and word together</option>
-            <option value="yes" ${settings.wordOnly ? 'selected' : ''}>Word only (reading practice)</option>
+        <label>Pictures on Talk buttons
+          <select id="s-picture-display">
+            <option value="together" ${settings.pictureDisplay === 'together' ? 'selected' : ''}>Pictures + words (recommended)</option>
+            <option value="big" ${settings.pictureDisplay === 'big' ? 'selected' : ''}>Bigger pictures, smaller words</option>
+            <option value="words" ${settings.pictureDisplay === 'words' ? 'selected' : ''}>Words only (explicit reading mode)</option>
           </select>
         </label>
         <label>Buttons per Talk screen
@@ -2141,7 +2153,14 @@
 
       <section class="settings-section settings-pictures">
         <h2>${L('image')} Pictures &amp; language</h2>
-        <div class="hint">Pictures use one safe visual language: family photos when you add them, then reviewed real-world photographs. A word without a reviewed photo stays as plain text.</div>
+        <div class="hint">Default order: a family photo you add, then a reviewed real photograph, then one curated ARASAAC picture for every built-in word. Plain text appears only when you choose Words only.</div>
+        <label>Prefer real photos where available
+          <select id="s-real-photo-order">
+            <option value="on" ${settings.preferRealPhotos !== false ? 'selected' : ''}>On (recommended)</option>
+            <option value="off" ${settings.preferRealPhotos === false ? 'selected' : ''}>Off — use the consistent ARASAAC set</option>
+          </select>
+        </label>
+        <details><summary>Picture credits</summary><p class="hint">ARASAAC pictograms are property of the Government of Aragón, created by Sergio Palao for ARASAAC, and distributed under CC BY-NC-SA 4.0. Nuran remains free, ad-free, and non-commercial.</p></details>
         <label>Learning language
           <select id="s-clang">
             <option value="en" ${settings.contentLang === 'en' ? 'selected' : ''}>English only</option>
@@ -2250,7 +2269,11 @@
         setSetting('gamesHidden', hidden);
       };
     });
-    $('#s-wordonly').onchange = e => setSetting('wordOnly', e.target.value === 'yes');
+    $('#s-picture-display').onchange = async e => {
+      await setSetting('pictureDisplay', e.target.value);
+      await setSetting('wordOnly', e.target.value === 'words');
+    };
+    $('#s-real-photo-order').onchange = e => setSetting('preferRealPhotos', e.target.value === 'on');
     $('#s-density').onchange = e => setSetting('density', Number(e.target.value));
     $('#s-rail').onchange = e => setSetting('dailyLanguageRail', e.target.value === 'on');
     $('#s-rail-words').onclick = () => go('managewords');

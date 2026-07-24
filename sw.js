@@ -2,13 +2,17 @@
    Cache-first app shell so everything opens with no connection (spec 2.4).
    Bump CACHE_VERSION when shipping changes. */
 
-const CACHE_VERSION = 'nuran-v24';
+importScripts('./nuran-arasaac.js');
+
+const CACHE_VERSION = 'nuran-v25';
+const ARASAAC_ASSETS = Object.values(self.NuranArasaac.assets).map(path => `./${path}`);
 const SHELL = [
   './',
   './index.html',
   './styles.css',
   './visual-system.css',
   './nuran-real-photos.js',
+  './nuran-arasaac.js',
   './real-photos/apple.png',
   './real-photos/ball.png',
   './real-photos/banana.png',
@@ -29,12 +33,14 @@ const SHELL = [
   './app.js',
   './manifest.webmanifest',
   './PHOTO_CREDITS.md',
+  './ARASAAC_CREDITS.md',
   './nuran-user-manual.pdf',
   './icon-192.png',
   './icon-512.png',
   './lucide.js',
   './fonts/AtkinsonHyperlegible-Regular.woff2',
   './fonts/AtkinsonHyperlegible-Bold.woff2',
+  ...ARASAAC_ASSETS,
 ];
 
 self.addEventListener('install', (e) => {

@@ -1,6 +1,5 @@
-/* Nuran AAC — real-world visual resolver.
-   Child-facing picture rule: caregiver photo → reviewed real photograph → plain letter.
-   Never generate a cartoon, stick figure, pseudo-person, or synthetic fallback at runtime. */
+/* Nuran AAC — reviewed real-photograph layer.
+   The shared registry places this above the curated ARASAAC layer when caregivers prefer photos. */
 
 (function (root) {
   'use strict';
@@ -57,12 +56,13 @@
     return null;
   }
 
-  function letterTile(label) {
-    const initial = clean(label).slice(0, 1).toUpperCase() || '?';
-    return `<span class="nuran-letter-tile" aria-hidden="true" data-nuran-letter="${escapeHTML(initial)}">${escapeHTML(initial)}</span>`;
+  function wordTile(label) {
+    const word = String(label == null ? '' : label).trim() || '?';
+    return `<span class="nuran-word-tile" aria-hidden="true" data-nuran-word="${escapeHTML(word)}">${escapeHTML(word)}</span>`;
   }
 
-  function photoHTML(key) {
+  function photoHTML(item) {
+    const key = typeof item === 'string' ? item : keyFor(item);
     const photo = PHOTOS[key];
     if (!photo) return '';
     return `<img class="nuran-real-photo" src="${photo.src}" alt="" aria-hidden="true" draggable="false" data-nuran-real-photo="${key}">`;
@@ -70,15 +70,16 @@
 
   function html(item) {
     const key = keyFor(item);
-    return photoHTML(key) || letterTile((item && (item.label || item.name)) || key || '?');
+    return photoHTML(key) || wordTile((item && (item.label || item.name)) || key || '?');
   }
 
   root.NuranRealPhotos = Object.freeze({
     html,
     has(item) { return !!keyFor(item); },
     hasPhoto(item) { return !!PHOTOS[keyFor(item)]; },
+    photoHTML,
     keyFor,
-    letterTile,
+    wordTile,
     keys: WORD_KEYS,
     aliases: ALIASES,
     photoKeys: Object.freeze(Object.keys(PHOTOS)),

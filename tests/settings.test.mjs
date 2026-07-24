@@ -9,7 +9,20 @@ test('settings default to a persistent Talk button', () => {
   assert.equal(settings.talkAccessMode, 'button');
   assert.equal(settings.learnTalkBridge, true);
   assert.equal(settings.pictureStyle, 'best');
+  assert.equal(settings.pictureDisplay, 'together');
+  assert.equal(settings.wordOnly, false);
+  assert.equal(settings.preferRealPhotos, true);
   assert.equal(settings.voiceURI, 'auto');
+});
+
+test('picture display modes validate and migrate the legacy Words-only setting', () => {
+  assert.equal(NuranSettings.normalize({ wordOnly: true }).pictureDisplay, 'words');
+  assert.equal(NuranSettings.normalize({ wordOnly: true }).wordOnly, true);
+  const big = NuranSettings.normalize({ pictureDisplay: 'big', wordOnly: true, preferRealPhotos: false });
+  assert.equal(big.pictureDisplay, 'big');
+  assert.equal(big.wordOnly, false);
+  assert.equal(big.preferRealPhotos, false);
+  assert.equal(NuranSettings.normalize({ pictureDisplay: 'unknown' }).pictureDisplay, 'together');
 });
 
 test('curriculum settings default to auto stage and are validated', () => {

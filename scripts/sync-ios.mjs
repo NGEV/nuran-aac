@@ -16,7 +16,9 @@ const sharedFiles = [
   'index.html',
   'lucide.js',
   'manifest.webmanifest',
+  'nuran-arasaac.js',
   'nuran-real-photos.js',
+  'ARASAAC_CREDITS.md',
   'PHOTO_CREDITS.md',
   'nuran-user-manual.pdf',
   'seed.js',
@@ -25,7 +27,7 @@ const sharedFiles = [
   'visual-system.css',
   'sw.js',
 ];
-const sharedDirectories = ['core', 'features', 'fonts', 'real-photos'];
+const sharedDirectories = ['arasaac', 'core', 'features', 'fonts', 'real-photos'];
 const retiredFiles = ['nuran-friends.js'];
 
 async function walk(relativeDirectory) {

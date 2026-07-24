@@ -8,6 +8,8 @@
     speechRate: 0.55,
     soundOn: true,
     wordOnly: false,
+    pictureDisplay: 'together',
+    preferRealPhotos: true,
     sentenceBar: true,
     keyboard: false,
     helpEnabled: false,
@@ -72,8 +74,8 @@
     out.backupReminderDays = enumValue(Number(out.backupReminderDays), [3, 7, 14, 30], defaults.backupReminderDays);
     out.celebration = enumValue(out.celebration, ['star', 'rainbow', 'balloons', 'check'], defaults.celebration);
     out.celebrationLevel = enumValue(out.celebrationLevel, ['quiet', 'cheerful', 'festive'], defaults.celebrationLevel);
-    // Old visual-mode values all migrate to the one safe visual contract:
-    // caregiver photo → reviewed real photograph → neutral letter tile.
+    // Old visual-mode values all migrate to the complete visual contract:
+    // caregiver photo → reviewed real photograph → curated ARASAAC pictogram.
     out.pictureStyle = 'best';
     out.voiceURI = shortString(out.voiceURI, defaults.voiceURI, 300);
     out.playNudge = enumValue(String(out.playNudge), ['off', '15', '20', '30', '45'], defaults.playNudge);
@@ -86,7 +88,13 @@
     out.dailyLanguageRail = boolValue(out.dailyLanguageRail, defaults.dailyLanguageRail);
     out.dailyLanguageWordIds = stringIds(out.dailyLanguageWordIds, 12);
     out.soundOn = boolValue(out.soundOn, defaults.soundOn);
-    out.wordOnly = boolValue(out.wordOnly, defaults.wordOnly);
+    const legacyWordOnly = boolValue(out.wordOnly, defaults.wordOnly);
+    const hasPictureDisplay = !!(input && Object.prototype.hasOwnProperty.call(input, 'pictureDisplay'));
+    out.pictureDisplay = hasPictureDisplay
+      ? enumValue(out.pictureDisplay, ['together', 'big', 'words'], defaults.pictureDisplay)
+      : (legacyWordOnly ? 'words' : defaults.pictureDisplay);
+    out.wordOnly = out.pictureDisplay === 'words';
+    out.preferRealPhotos = boolValue(out.preferRealPhotos, defaults.preferRealPhotos);
     out.sentenceBar = boolValue(out.sentenceBar, defaults.sentenceBar);
     out.keyboard = boolValue(out.keyboard, defaults.keyboard);
     out.helpEnabled = boolValue(out.helpEnabled, defaults.helpEnabled);

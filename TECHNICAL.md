@@ -15,7 +15,8 @@ discard stable AAC behavior and require the family to revalidate everything at o
 foundation extracts low-risk seams first while preserving the build-free runtime:
 
 - `core/settings.js` — defaults, validation, and normalization for all settings.
-- `core/symbol-registry.js` — one family-photo/Nuran-Friends/neutral-letter fallback policy for all visible symbols.
+- `core/symbol-registry.js` — one caregiver-photo/real-photo/curated-ARASAAC/full-word fallback
+  policy for all visible symbols.
 - `core/activity-registry.js` — activity metadata plus mount/unmount lifecycle hooks.
 - `core/platform.js` — web/native sharing and service-worker capabilities.
 - `features/activity-catalog.js` — declarative Learn and Play catalog with motion eligibility.
@@ -45,7 +46,9 @@ Important current defaults include:
 - `learnTalkBridge: true`
 - `motionLevel: "none"`
 - `density: 4`
-- `pictureStyle: "best"` — caregiver photo → reviewed real photograph → neutral letter tile
+- `pictureStyle: "best"` — caregiver photo → reviewed real photograph → curated offline ARASAAC
+- `pictureDisplay: "together"` — pictures plus words; `big` and explicit `words` are caregiver options
+- `preferRealPhotos: true` — real photographs precede drawn pictures when both are reviewed
 - `dailyLanguageRail: true` — caregiver-selected words retain their exact order on every Talk screen
 - `dailyLanguageWordIds` — up to 12 stable words; never generated from predictions or recent use
 - `voiceURI: "auto"` — highest-ranked installed offline English voice
@@ -78,12 +81,13 @@ activities select a matching installed language voice instead of forcing the sav
 Speaking styles remain rate/pitch adjustments to the selected voice, not downloaded voice models.
 A muted priming utterance handles iOS first-gesture behavior.
 
-`core/symbol-registry.js` is the only visual policy. It uses a family photo when present, then a
-reviewed source-recorded real photograph, and finally a neutral letter tile. `nuran-real-photos.js`
-contains only the bounded offline photo references and never generates art at runtime. The same
-resolver supplies word tiles and navigation role aliases, so child-facing screens never mix old
-pictograms, cartoons, or synthetic people. Historic visual-mode values normalize to this one safe
-policy without discarding caregiver photos.
+`core/symbol-registry.js` is the only visual policy. It uses a caregiver photo when present, then a
+reviewed source-recorded real photograph when preferred, then the exact curated offline ARASAAC
+pictogram. `nuran-real-photos.js` contains only bounded offline photo references; `nuran-arasaac.js`
+maps all 120 seeded visual keys to hashed local PNGs. The same resolver supplies word tiles and
+navigation aliases. A caregiver-created word with no photo or bundled match renders its complete
+word label, never a one-letter fallback. Historic visual-mode values normalize to the current
+picture-display settings without discarding caregiver photos.
 
 `talkAccessMode` supports `button`, `dock`, and `off`. Talk access is rendered only on child-facing
 routes. The custom dock always starts with Talk and contains at most three de-duplicated word IDs.
@@ -115,8 +119,8 @@ above and be reviewed at 1280×720 and 768×1024.
 
 ## Offline shell
 
-`sw.js` (`nuran-v24`) precaches 31 verified runtime assets, including the offline real-photo pack
-and its credit notice.
+`sw.js` (`nuran-v25`) precaches 152 verified runtime assets, including the offline real-photo and
+120-pictogram ARASAAC packs, registries, and both credit notices.
 Navigation failures may fall back to
 `index.html`; missing scripts, images, or data do not receive HTML as a false success. Only
 successful network responses are cached. Bump `CACHE_VERSION` for every shipped runtime change.
@@ -131,7 +135,8 @@ npm run verify:all
 
 This verifies every service-worker asset, runs Node unit/data tests through `node:test` and
 `fake-indexeddb`, then runs a direct Playwright WebKit flow at 1280×720 and 768×1024. The browser flow
-checks the onboarding viewport, real-world picture setup, absence of the retired cartoon art,
+checks the onboarding viewport, complete default picture setup, absence of the retired cartoon art
+and single-letter fallback (including a pictureless custom word), People and Talk coverage,
 Talk Anytime button/dock/off modes, the Daily Language Rail, Caregiver Today navigation, grouped
 Settings, one Visual Routine, the Learn-to-Talk bridge selection, non-gating Play reminder copy,
 absence of page errors, and axe WCAG A/AA results on the main changed states.

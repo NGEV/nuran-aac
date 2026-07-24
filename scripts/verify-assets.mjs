@@ -3,10 +3,18 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const sw = await readFile(resolve(root, 'sw.js'), 'utf8');
+const [sw, arasaacRegistry] = await Promise.all([
+  readFile(resolve(root, 'sw.js'), 'utf8'),
+  readFile(resolve(root, 'nuran-arasaac.js'), 'utf8'),
+]);
 const shellMatch = sw.match(/const SHELL = \[([\s\S]*?)\];/);
 if (!shellMatch) throw new Error('Could not find service-worker SHELL manifest');
-const assets = [...shellMatch[1].matchAll(/'\.\/(.*?)'/g)].map(m => m[1] || 'index.html');
+const shellAssets = [...shellMatch[1].matchAll(/'\.\/(.*?)'/g)].map(m => m[1] || 'index.html');
+const arasaacAssets = [...arasaacRegistry.matchAll(/"(arasaac\/[^"]+\.png)"/g)].map(match => match[1]);
+if (new Set(arasaacAssets).size !== 120) {
+  throw new Error(`Expected 120 curated ARASAAC assets; found ${new Set(arasaacAssets).size}`);
+}
+const assets = [...new Set([...shellAssets, ...arasaacAssets])];
 const missing = [];
 for (const asset of assets) {
   const path = asset === '' ? 'index.html' : asset;
