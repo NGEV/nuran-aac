@@ -117,7 +117,7 @@ input, select, textarea {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
   font-size: 1.6rem; font-weight: 700;
 }
-.home-btn svg, .home-btn > img { width: 72px; height: 72px; object-fit: contain; }
+.home-btn svg, .home-btn > img, .home-btn > .nuran-letter-tile { width: 72px; height: 72px; object-fit: contain; }
 .home-btn.talk   { background: var(--cat-action-bg);  border-color: var(--cat-action-edge); }
 .home-btn.people { background: var(--cat-people-bg);  border-color: var(--cat-people-edge); }
 .home-btn.helpme { background: var(--cat-social-bg);  border-color: var(--cat-social-edge); }
@@ -128,14 +128,14 @@ input, select, textarea {
 .home-grid.home-v2 .home-btn.hero {
   grid-column: 1 / -1; min-height: 200px; font-size: 1.9rem;
 }
-.home-grid.home-v2 .home-btn.hero svg, .home-grid.home-v2 .home-btn.hero > img {
+.home-grid.home-v2 .home-btn.hero svg, .home-grid.home-v2 .home-btn.hero > img, .home-grid.home-v2 .home-btn.hero > .nuran-letter-tile {
   width: 96px; height: 96px; object-fit: contain;
 }
 .home-grid.home-v2 .home-btn { min-height: 150px; }
 
 /* First-run artwork must never push setup actions below a landscape viewport. */
 .welcome-logo { text-align: center; line-height: 0; }
-.welcome-logo svg, .welcome-logo img {
+.welcome-logo svg, .welcome-logo img, .welcome-logo .nuran-letter-tile {
   width: clamp(92px, 18vh, 160px); height: clamp(92px, 18vh, 160px); object-fit: contain; margin: 0 auto;
 }
 

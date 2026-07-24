@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { copyFile, mkdir, readdir, readFile, stat } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,7 +16,8 @@ const sharedFiles = [
   'index.html',
   'lucide.js',
   'manifest.webmanifest',
-  'nuran-friends.js',
+  'nuran-real-photos.js',
+  'PHOTO_CREDITS.md',
   'nuran-user-manual.pdf',
   'seed.js',
   'speech.js',
@@ -24,7 +25,8 @@ const sharedFiles = [
   'visual-system.css',
   'sw.js',
 ];
-const sharedDirectories = ['core', 'features', 'fonts'];
+const sharedDirectories = ['core', 'features', 'fonts', 'real-photos'];
+const retiredFiles = ['nuran-friends.js'];
 
 async function walk(relativeDirectory) {
   const directory = path.join(source, relativeDirectory);
@@ -43,6 +45,7 @@ async function digest(file) {
 }
 
 await mkdir(target, { recursive: true });
+await Promise.all(retiredFiles.map(relativePath => rm(path.join(target, relativePath), { force: true })));
 const files = [
   ...sharedFiles,
   ...(await Promise.all(sharedDirectories.map(walk))).flat(),

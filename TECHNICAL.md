@@ -45,7 +45,7 @@ Important current defaults include:
 - `learnTalkBridge: true`
 - `motionLevel: "none"`
 - `density: 4`
-- `pictureStyle: "best"` — caregiver photo → Nuran Friends → neutral letter tile
+- `pictureStyle: "best"` — caregiver photo → reviewed real photograph → neutral letter tile
 - `dailyLanguageRail: true` — caregiver-selected words retain their exact order on every Talk screen
 - `dailyLanguageWordIds` — up to 12 stable words; never generated from predictions or recent use
 - `voiceURI: "auto"` — highest-ranked installed offline English voice
@@ -78,10 +78,11 @@ activities select a matching installed language voice instead of forcing the sav
 Speaking styles remain rate/pitch adjustments to the selected voice, not downloaded voice models.
 A muted priming utterance handles iOS first-gesture behavior.
 
-`core/symbol-registry.js` is the only visual-symbol policy. It uses a family photo when present,
-then the complete 120-word Nuran Friends code-native art set, and finally a neutral letter tile. The
-same resolver supplies word tiles and navigation role aliases, so child-facing screens never mix
-old pictograms and friendly illustrations. Historic visual-mode values normalize to this one safe
+`core/symbol-registry.js` is the only visual policy. It uses a family photo when present, then a
+reviewed source-recorded real photograph, and finally a neutral letter tile. `nuran-real-photos.js`
+contains only the bounded offline photo references and never generates art at runtime. The same
+resolver supplies word tiles and navigation role aliases, so child-facing screens never mix old
+pictograms, cartoons, or synthetic people. Historic visual-mode values normalize to this one safe
 policy without discarding caregiver photos.
 
 `talkAccessMode` supports `button`, `dock`, and `off`. Talk access is rendered only on child-facing
@@ -114,7 +115,9 @@ above and be reviewed at 1280×720 and 768×1024.
 
 ## Offline shell
 
-`sw.js` (`nuran-v23`) precaches 22 verified runtime assets. Navigation failures may fall back to
+`sw.js` (`nuran-v24`) precaches 31 verified runtime assets, including the offline real-photo pack
+and its credit notice.
+Navigation failures may fall back to
 `index.html`; missing scripts, images, or data do not receive HTML as a false success. Only
 successful network responses are cached. Bump `CACHE_VERSION` for every shipped runtime change.
 
@@ -128,7 +131,7 @@ npm run verify:all
 
 This verifies every service-worker asset, runs Node unit/data tests through `node:test` and
 `fake-indexeddb`, then runs a direct Playwright WebKit flow at 1280×720 and 768×1024. The browser flow
-checks the onboarding viewport, Friendly Nuran picture setup, child-facing Nuran Friends art,
+checks the onboarding viewport, real-world picture setup, absence of the retired cartoon art,
 Talk Anytime button/dock/off modes, the Daily Language Rail, Caregiver Today navigation, grouped
 Settings, one Visual Routine, the Learn-to-Talk bridge selection, non-gating Play reminder copy,
 absence of page errors, and axe WCAG A/AA results on the main changed states.

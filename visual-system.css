@@ -219,7 +219,8 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 }
 
 .welcome-logo svg,
-.welcome-logo img { width: 118px; height: 118px; }
+.welcome-logo img,
+.welcome-logo .nuran-letter-tile { width: 118px; height: 118px; }
 
 .welcome-kicker {
   margin-bottom: 10px;
@@ -298,7 +299,8 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 }
 
 .home-btn svg,
-.home-btn > img {
+.home-btn > img,
+.home-btn > .nuran-letter-tile {
   width: 82px;
   height: 82px;
   padding: 9px;
@@ -337,7 +339,8 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
 }
 
 .home-grid.home-v2 .home-btn.hero svg,
-.home-grid.home-v2 .home-btn.hero > img {
+.home-grid.home-v2 .home-btn.hero > img,
+.home-grid.home-v2 .home-btn.hero > .nuran-letter-tile {
   width: 108px;
   height: 108px;
   border-radius: 28px;
@@ -491,6 +494,27 @@ input[type="checkbox"] { accent-color: var(--accent-strong); }
   height: 80px;
   object-fit: contain;
   border-radius: 13px;
+}
+
+/* Real-world visual contract: photos stay literal; unresolved words are text, never drawings. */
+.nuran-real-photo { display: block; background: #fff; }
+.nuran-letter-tile {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  min-width: 1.3em;
+  min-height: 1.3em;
+  width: 100%;
+  height: 100%;
+  padding: 0.08em;
+  border: 2px solid rgba(23, 35, 63, 0.16);
+  border-radius: 0.28em;
+  background: #fff;
+  color: var(--ink);
+  font-family: 'Atkinson Hyperlegible', system-ui, sans-serif;
+  font-size: clamp(1.4rem, 5vw, 3rem);
+  font-weight: 800;
+  line-height: 1;
 }
 
 .tile .lbl { font-size: 1.42rem; letter-spacing: -0.02em; }
@@ -770,10 +794,8 @@ select:disabled { opacity: 0.55; cursor: not-allowed; }
 .tok-place    { background: linear-gradient(145deg, #dff8f1, #bcebe2); border-color: var(--cat-place-edge); }
 .tok-neutral  { background: linear-gradient(145deg, #f7f3ff, #e5def4); border-color: var(--cat-neutral-edge); }
 
-/* Learn and Play hubs: Sprout the mascot fills the hub with real, warm
-   content instead of empty background below a short row of game cards.
-   Shared by both hubs; Learn additionally gets the sticker collection —
-   Play stays reward-free, matching its own "fun, non-educational" intent. */
+/* Learn and Play hubs remain text-led between the game cards. Learn additionally gets a small
+   collection; Play stays reward-free, matching its own "fun, non-educational" intent. */
 .learn-hub .tile-grid,
 .play-hub .tile-grid { flex: 0 0 auto; }
 
@@ -787,8 +809,6 @@ select:disabled { opacity: 0.55; cursor: not-allowed; }
   background: linear-gradient(135deg, #fff3d0, #ffe1ea 60%, #eee5ff);
   box-shadow: var(--shadow-sm);
 }
-.hub-mascot { flex: none; display: grid; place-items: center; filter: drop-shadow(0 6px 10px rgba(45, 31, 79, 0.14)); }
-.hub-mascot svg { display: block; }
 .hub-hero-copy { display: flex; flex-direction: column; gap: 3px; }
 .hub-hero-greet { font-weight: 800; font-size: 1.28rem; letter-spacing: -0.02em; color: var(--ink); }
 .hub-hero-sub { color: var(--ink-soft); font-size: 1rem; }
@@ -826,12 +846,10 @@ select:disabled { opacity: 0.55; cursor: not-allowed; }
   background: var(--surface-muted);
 }
 
-.mascot-cheer { filter: drop-shadow(0 8px 14px rgba(45, 31, 79, 0.16)); }
 .cele-stickers { color: var(--ink-soft); font-size: 1.02rem; text-align: center; }
 
 @media (max-width: 640px) {
   .hub-hero { padding: 13px 16px; gap: 12px; }
-  .hub-mascot svg { width: 76px; height: 76px; }
   .hub-hero-greet { font-size: 1.14rem; }
   .learn-collection { padding: 14px 16px; }
 }
@@ -849,7 +867,8 @@ select:disabled { opacity: 0.55; cursor: not-allowed; }
   .welcome-setup { padding: 24px 30px; }
   .welcome-logo { width: 116px; height: 116px; margin-bottom: 12px; border-radius: 30px; }
   .welcome-logo svg,
-  .welcome-logo img { width: 82px; height: 82px; }
+  .welcome-logo img,
+  .welcome-logo .nuran-letter-tile { width: 82px; height: 82px; }
   .welcome-copy { margin-top: 8px; }
 }
 
@@ -861,7 +880,8 @@ select:disabled { opacity: 0.55; cursor: not-allowed; }
   .welcome-brand::after { inset: 10px; border-radius: 18px; }
   .welcome-logo { width: 104px; height: 104px; margin-bottom: 10px; }
   .welcome-logo svg,
-  .welcome-logo img { width: 74px; height: 74px; }
+  .welcome-logo img,
+  .welcome-logo .nuran-letter-tile { width: 74px; height: 74px; }
   .welcome-brand h2 { font-size: 1.75rem; }
   .welcome-copy { font-size: 0.92rem; }
   .welcome-setup { padding: 24px; }

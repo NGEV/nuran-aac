@@ -26,11 +26,11 @@ takes priority over the device voice.
 
 ## Pictures and voices
 
-The default picture policy uses a caregiver's photo for that word when one has been added, then the
-bundled **Nuran Friends** artwork, then a neutral letter tile. Nuran Friends is one original, warm,
-fully illustrated set used consistently across Home, Talk, Learn, Play, People fallbacks, and setup
-previews. Every picture is paired with its written word; caregivers do not need to choose a competing
-symbol library.
+The default picture policy uses a caregiver's photo for that word when one has been added, then a
+reviewed bundled real-world photograph, then a neutral letter tile. The app never invents a cartoon,
+stick figure, or pretend person for a missing photo. Every picture is paired with its written word;
+the first offline photo pack covers clear concrete objects while people, actions, places, and abstract
+words stay text-first until a caregiver or curator supplies an appropriate real image.
 
 The default **Automatic** voice mode ranks the English voices actually installed on the device,
 preferring offline and enhanced/natural voices when the browser identifies those qualities. Settings
@@ -100,7 +100,7 @@ For a child device, consider iPadOS **Guided Access** so the device remains insi
 Settings are grouped by task: Talk & access, Voice & sound, Pictures & language, Learn & Play,
 Motion & celebrations, and Data reminders. Changes save immediately. Motion defaults to None and can
 be set to Gentle or Full by a caregiver. The four-step full setup makes the actual device voice,
-friendly picture policy, motion, and celebration choices clear before handoff to the child.
+real-world picture policy, motion, and celebration choices clear before handoff to the child.
 
 See `TECHNICAL.md` for architecture, verification, and native synchronization. The illustrated
 user manual (`nuran-user-manual.pdf`, Version 5) covers this update: first-time setup, Talk

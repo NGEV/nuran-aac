@@ -77,23 +77,23 @@ try {
     const quick = page.getByRole('button', { name: /Quick setup/ });
     await quick.waitFor({ state: 'visible' });
     const quickBox = await quick.boundingBox();
-    const logoBox = await page.locator('.welcome-logo svg, .welcome-logo img').boundingBox();
+    const logoBox = await page.locator('.welcome-logo .nuran-letter-tile, .welcome-logo img').boundingBox();
     assert.ok(quickBox && quickBox.y + quickBox.height <= viewport.height,
       `${viewport.name}: Quick Setup is below the initial viewport`);
-    assert.ok(logoBox && logoBox.height <= 160, `${viewport.name}: welcome logo exceeds 160px`);
+    assert.ok(logoBox && logoBox.height <= 160, `${viewport.name}: welcome visual exceeds 160px`);
     await checkAccessibility(page, `${viewport.name} welcome`);
     await capture(page, viewport.name === 'iPad landscape' ? '01-welcome-landscape' : '08-welcome-portrait');
 
     if (viewport.name === 'iPad landscape') {
       // The full setup path exposes a real installed-device voice picker and the
-      // humanized picture contract before a caregiver finishes setup.
+      // real-world picture contract before a caregiver finishes setup.
       await page.getByRole('button', { name: /Choose settings/ }).click();
       await page.getByRole('heading', { name: 'Setup 1 of 4 — Voice' }).waitFor();
       assert.equal(await page.locator('#wz-device-voice option[value="auto"]').count(), 1,
         'Setup is missing automatic best voice');
       await page.getByRole('button', { name: 'Next' }).click();
       await page.getByRole('heading', { name: 'Setup 2 of 4 — Pictures' }).waitFor();
-      await page.getByRole('button', { name: /Friendly Nuran pictures/ }).click();
+      await page.getByRole('button', { name: /Real-world pictures/ }).click();
       assert.equal(await page.evaluate(() => DB.getSetting('pictureStyle')), 'best',
         'Full setup did not persist the safe picture contract');
       await page.reload({ waitUntil: 'domcontentloaded' });
@@ -104,8 +104,10 @@ try {
     await page.getByRole('button', { name: 'Learn' }).waitFor();
     assert.equal(await page.evaluate(() => DB.getSetting('pictureStyle')), 'best', `${viewport.name}: Quick Setup did not select best visuals`);
     assert.equal(await page.evaluate(() => DB.getSetting('voiceURI')), 'auto', `${viewport.name}: Quick Setup did not select automatic best voice`);
-    assert.equal(await page.locator('.home-grid svg.nuran-friends-art').count(), 4,
-      `${viewport.name}: humanized Home visuals are not visible by default`);
+    assert.equal(await page.locator('.home-grid svg.nuran-friends-art').count(), 0,
+      `${viewport.name}: retired cartoon visual art is still reachable from Home`);
+    assert.equal(await page.locator('.home-grid .nuran-letter-tile').count(), 4,
+      `${viewport.name}: Home is not using the plain-text fallback for unresolved real-world photos`);
     await page.getByRole('button', { name: 'Talk', exact: true }).click();
     await page.getByLabel('Daily language rail').waitFor();
     assert.equal(await page.locator('[data-railword]').count(), 8,
@@ -155,7 +157,7 @@ try {
       await page.getByRole('button', { name: /Settings/ }).click();
       await page.getByRole('heading', { name: /Talk & access/ }).waitFor();
       await page.getByRole('heading', { name: /Motion & celebrations/ }).waitFor();
-      await page.getByText(/single safe visual language/i).waitFor();
+      await page.getByText(/one safe visual language/i).waitFor();
       assert.equal(await page.locator('#s-rail').inputValue(), 'on', 'Settings did not enable the Daily Language Rail by default');
       assert.equal(await page.locator('#s-device-voice option[value="auto"]').count(), 1, 'Automatic best device voice is missing');
       await page.getByText(/Play never closes/i).waitFor();

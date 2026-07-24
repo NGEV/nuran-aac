@@ -73,7 +73,7 @@
     out.celebration = enumValue(out.celebration, ['star', 'rainbow', 'balloons', 'check'], defaults.celebration);
     out.celebrationLevel = enumValue(out.celebrationLevel, ['quiet', 'cheerful', 'festive'], defaults.celebrationLevel);
     // Old visual-mode values all migrate to the one safe visual contract:
-    // caregiver photo → Nuran Friends → neutral letter tile.
+    // caregiver photo → reviewed real photograph → neutral letter tile.
     out.pictureStyle = 'best';
     out.voiceURI = shortString(out.voiceURI, defaults.voiceURI, 300);
     out.playNudge = enumValue(String(out.playNudge), ['off', '15', '20', '30', '45'], defaults.playNudge);

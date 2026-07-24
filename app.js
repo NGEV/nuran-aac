@@ -196,36 +196,6 @@
     return window.NuranSymbols.html({ label, symbolKey }, { style: style || settings.pictureStyle });
   }
 
-  /* ---------- Sprout: Nuran's decorative companion.
-     Purely ornamental brand character — never a vocabulary tile, never tied to
-     a symbol library, never used where it could be mistaken for a word the
-     child can select. Plant-based and abstract on purpose: no represented
-     person, so it carries no identity to get wrong (content-neutrality). Its
-     brighter app-chrome
-     palette, so it reads as "the app" rather than "a word." */
-  function mascot(mood, size) {
-    const ink = '#3a4658';
-    const st = `stroke="${ink}" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"`;
-    const cheer = mood === 'cheer';
-    const arms = cheer
-      ? `<path d="M 26 60 Q 10 44 8 26" fill="none" ${st}/><path d="M 70 60 Q 86 44 88 26" fill="none" ${st}/>`
-      : `<path d="M 26 62 Q 14 58 10 46" fill="none" ${st}/><path d="M 70 62 Q 78 66 84 60" fill="none" ${st}/>`;
-    const sparkle = cheer
-      ? `<g stroke="#f6b832" stroke-width="5" stroke-linecap="round"><path d="M 14 14 L 14 22 M 10 18 L 18 18"/><path d="M 82 12 L 82 20 M 78 16 L 86 16"/></g>` : '';
-    return `<svg viewBox="0 0 96 96" width="${size || 96}" height="${size || 96}" role="img" aria-hidden="true">
-      <path d="M 48 90 Q 14 90 14 56 Q 14 24 48 20 Q 82 24 82 56 Q 82 90 48 90 Z" fill="#ffd873" ${st}/>
-      <path d="M 48 20 Q 46 6 34 2 Q 40 14 44 20 Z" fill="#4fae7a" ${st}/>
-      <path d="M 48 20 Q 50 4 64 2 Q 56 12 52 20 Z" fill="#6ecb92" ${st}/>
-      ${arms}
-      <circle cx="34" cy="54" r="4.5" fill="${ink}"/>
-      <circle cx="62" cy="54" r="4.5" fill="${ink}"/>
-      <circle cx="26" cy="64" r="6" fill="#ff9d9d" opacity="0.55"/>
-      <circle cx="70" cy="64" r="6" fill="#ff9d9d" opacity="0.55"/>
-      <path d="M 36 68 Q 48 ${cheer ? 80 : 76} 60 68" fill="none" ${st}/>
-      ${sparkle}
-    </svg>`;
-  }
-
   async function speakAndFeedback(btn, item) {
     Speech.prime();
     btn.classList.add('speaking');
@@ -614,7 +584,7 @@
   const STICKER_MILESTONES = [1, 5, 10, 25, 50, 100, 200, 500];
   function stickerMessage(n) {
     if (!n) return 'Play a game to start your sticker collection!';
-    if (STICKER_MILESTONES.includes(n)) return `Sprout is so proud — ${n} sticker${n === 1 ? '' : 's'} collected!`;
+    if (STICKER_MILESTONES.includes(n)) return `Nice work — ${n} sticker${n === 1 ? '' : 's'} collected!`;
     return `${n} stickers collected and counting!`;
   }
   function stickerRow(n) {
@@ -645,10 +615,9 @@
     screen(`${topbar('Learn', null)}
       <div class="screen learn-hub">
         <div class="hub-hero">
-          <div class="hub-mascot">${mascot(stickers ? 'cheer' : 'idle', 108)}</div>
           <div class="hub-hero-copy">
-            <div class="hub-hero-greet">Hi, I'm Sprout!</div>
-            <div class="hub-hero-sub">Pick a game and let's practice together.</div>
+            <div class="hub-hero-greet">Learn together</div>
+            <div class="hub-hero-sub">Pick a game and practice at your own pace.</div>
           </div>
         </div>
         <section class="today-row" aria-label="Today’s gentle practice">
@@ -665,7 +634,7 @@
         </div>
         <div class="learn-collection">
           <div class="learn-collection-head">
-            <span class="learn-collection-title">Sprout's collection</span>
+            <span class="learn-collection-title">Your collection</span>
             <span class="learn-collection-msg">${esc(stickerMessage(stickers))}</span>
           </div>
           ${stickerRow(stickers)}
@@ -871,7 +840,7 @@
             if (backToPlay) { breakActive = false; playSec = 0; nudgeWarned = false; }
             screen(`${topbar('Learn', 'learn')}
               <div class="screen" style="justify-content:center;align-items:center;gap:20px">
-                ${backToPlay ? `<span class="cs-done">${visualSymbol(settings.celebration, celeKey())}</span>` : `<div class="mascot-cheer">${mascot('cheer', 128)}</div>`}
+                ${backToPlay ? `<span class="cs-done">${visualSymbol(settings.celebration, celeKey())}</span>` : ''}
                 <div class="cele-word">${backToPlay ? 'Games are back!' : 'All done!'}</div>
                 ${backToPlay ? '' : `<div class="cele-stickers">${esc(stickerMessage(settings.stickersEarned || 0))}</div>`}
                 <div class="row" style="display:flex;gap:14px">
@@ -942,7 +911,6 @@
     screen(`${topbar('Play', null)}
       <div class="screen play-hub">
         <div class="hub-hero">
-          <div class="hub-mascot">${mascot('idle', 108)}</div>
           <div class="hub-hero-copy">
             <div class="hub-hero-greet">Let's have some fun!</div>
             <div class="hub-hero-sub">Free play — no scoring, no pressure, just play.</div>
@@ -1504,11 +1472,11 @@
 
   screens.wizpictures = function () {
     const choices = [
-      ['best', 'Friendly Nuran pictures', 'Family photos when added, then warm Nuran Friends artwork. Every tile also keeps its written word.'],
+      ['best', 'Real-world pictures', 'Family photos when added, then reviewed real-world photos. Words without a reviewed photo stay as plain text.'],
     ];
     screen(`${topbar('Setup 2 of 4 — Pictures', null)}
       <div class="screen" style="max-width:760px;margin:0 auto">
-        <p>Pictures are always paired with words. Family photos take priority; Nuran Friends keeps every other tile warm and familiar.</p>
+        <p>Pictures are always paired with words. Family photos take priority; bundled pictures are reviewed real-world photographs. A word without a reviewed photo stays as plain text.</p>
         <div class="wz-opts">
           ${choices.map(([value, name, description]) => `
             <button class="wz-card ${settings.pictureStyle === value ? 'current' : ''}" data-picture-style="${value}">
@@ -1616,9 +1584,9 @@
           <button class="${scenes.length ? '' : 'btn-primary'}" data-nav="${scenes.length ? 'visualscene' : 'visualsceneedit'}">${scenes.length ? 'Open scene' : 'Create the scene'}</button>
         </section>
         <section class="today-card today-learning today-wide">
-          <h2>${L('sprout')} Learning</h2>
+          <h2>${L('list')} Learning</h2>
           <p>${progress.length
-            ? `${progress.length} learning moments are safely stored in the current progress window. Sprout and your child have collected ${settings.stickersEarned || 0} sticker${(settings.stickersEarned || 0) === 1 ? '' : 's'} together so far.`
+            ? `${progress.length} learning moments are safely stored in the current progress window. Your child has collected ${settings.stickersEarned || 0} sticker${(settings.stickersEarned || 0) === 1 ? '' : 's'} so far.`
             : 'No learning moments recorded yet. Start with one short, familiar game.'}</p>
           <div class="today-actions"><button data-nav="learn">Open Learn</button><button data-nav="settingsview">Review settings</button></div>
         </section>
@@ -2173,7 +2141,7 @@
 
       <section class="settings-section settings-pictures">
         <h2>${L('image')} Pictures &amp; language</h2>
-        <div class="hint">Pictures use a single safe visual language: family photos when you add them, then friendly Nuran Friends artwork. Turn on Word only in Talk &amp; access for reading practice.</div>
+        <div class="hint">Pictures use one safe visual language: family photos when you add them, then reviewed real-world photographs. A word without a reviewed photo stays as plain text.</div>
         <label>Learning language
           <select id="s-clang">
             <option value="en" ${settings.contentLang === 'en' ? 'selected' : ''}>English only</option>

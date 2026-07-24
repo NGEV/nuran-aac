@@ -2,13 +2,21 @@
    Cache-first app shell so everything opens with no connection (spec 2.4).
    Bump CACHE_VERSION when shipping changes. */
 
-const CACHE_VERSION = 'nuran-v23';
+const CACHE_VERSION = 'nuran-v24';
 const SHELL = [
   './',
   './index.html',
   './styles.css',
   './visual-system.css',
-  './nuran-friends.js',
+  './nuran-real-photos.js',
+  './real-photos/apple.png',
+  './real-photos/ball.png',
+  './real-photos/banana.png',
+  './real-photos/blocks.png',
+  './real-photos/bread.png',
+  './real-photos/cookie.png',
+  './real-photos/milk.png',
+  './real-photos/water.png',
   './core/symbol-registry.js',
   './core/settings.js',
   './core/curriculum.js',
@@ -20,6 +28,7 @@ const SHELL = [
   './seed.js',
   './app.js',
   './manifest.webmanifest',
+  './PHOTO_CREDITS.md',
   './nuran-user-manual.pdf',
   './icon-192.png',
   './icon-512.png',
